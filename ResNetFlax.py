@@ -5,6 +5,9 @@ import flax
 from flax.core import freeze, unfreeze
 from flax import linen as nn
 import copy
+from functools import partial
+
+ModuleDef = Any
 
 
 class Sequential(nn.Module):
@@ -24,6 +27,10 @@ class ResidualBlock(nn.Module):
     in_channels: int
     out_channels: int
     N: int
+
+    # For batchnorm, you can pass it as a ModuleDef
+    norm: ModuleDef
+
     downsample: bool = True
 
     # define init for conv layers
@@ -44,7 +51,7 @@ class ResidualBlock(nn.Module):
                     use_bias=False,
                     kernel_init=self.kernel_init,
                 ),
-                # BatchNorm
+                self.norm(),
                 nn.relu(),
                 nn.Conv(
                     kernel_size=3,
@@ -54,7 +61,7 @@ class ResidualBlock(nn.Module):
                     use_bias=False,
                     kernel_init=self.kernel_init,
                 ),
-                # BatchNorm
+                self.norm(),
             ]
         )
 
@@ -71,7 +78,7 @@ class ResidualBlock(nn.Module):
                         use_bias=False,
                         kernel_init=self.kernel_init,
                     ),
-                    # BatchNorm
+                    self.norm(),
                     nn.relu(),
                     nn.Conv(
                         kernel_size=3,
@@ -81,7 +88,7 @@ class ResidualBlock(nn.Module):
                         use_bias=False,
                         kernel_init=self.kernel_init,
                     ),
-                    # BatchNorm
+                    self.norm(),
                 ]
             )
         else:
@@ -95,7 +102,7 @@ class ResidualBlock(nn.Module):
                         use_bias=False,
                         kernel_init=self.kernel_init,
                     ),
-                    # BatchNorm
+                    self.norm(),
                     nn.relu(),
                     nn.Conv(
                         kernel_size=3,
@@ -105,11 +112,11 @@ class ResidualBlock(nn.Module):
                         use_bias=False,
                         kernel_init=self.kernel_init,
                     ),
-                    # BatchNorm
+                    self.norm(),
                 ]
             )
 
-    def __call__(self, input, train=True):
+    def __call__(self, input):
         x = input
 
         for layer in self.layers:
@@ -147,8 +154,16 @@ class ResNet(nn.Module):
     N: int
     num_classes: int
 
+    # For train/test differences, want to pass “mode switches” to __call__
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x, train):
+
+        norm = partial(
+            nn.BatchNorm,
+            use_running_average=not train,
+            momentum=0.9,
+            epsilon=1e-5,
+        )
 
         x = nn.Conv(
             kernel_size=3,
@@ -159,15 +174,21 @@ class ResNet(nn.Module):
             kernel_init=self.kernel_init,
         )(x)
 
-        # x = bn(x)
-        # x = nn.relu(x)
+        x = norm()(x)
+        x = nn.relu(x)
 
         x = ResidualBlock(
-            in_channels=self.filter_list[0], out_channels=self.filter_list[1], N=self.N
+            in_channels=self.filter_list[0],
+            out_channels=self.filter_list[1],
+            N=self.N,
+            norm=norm,
         )(x)
 
         x = ResidualBlock(
-            in_channels=self.filter_list[1], out_channels=self.filter_list[2], N=self.N
+            in_channels=self.filter_list[1],
+            out_channels=self.filter_list[2],
+            N=self.N,
+            norm=norm,
         )(x)
 
         x = ResidualBlock(
@@ -175,9 +196,11 @@ class ResNet(nn.Module):
             out_channels=self.filter_list[2],
             N=self.N,
             downsample=False,
+            norm=norm,
         )(x)
 
-        # Might have to check order for indices
+        # TODO: Might have to check order for indices
+        # Global pooling
         x = jnp.mean(x, axis=(2, 3)).squeeze()
 
         x = x.reshape(x.shape[0], -1)
