@@ -6,18 +6,17 @@ from flax.core import freeze, unfreeze
 from flax import linen as nn
 import copy
 
+
 class Sequential(nn.Module):
     layers: Sequence[nn.Module]
 
     @nn.compact
-    def __call__(self,inputs):
+    def __call__(self, inputs):
         x = inputs
 
         for layer in self.layers:
             x = layer(x)
-        return x 
-
-
+        return x
 
 
 class ResidualBlock(nn.Module):
@@ -25,9 +24,9 @@ class ResidualBlock(nn.Module):
     in_channels: int
     out_channels: int
     N: int
-    downsample: bool
+    downsample: bool = True
 
-    #define init for conv layers
+    # define init for conv layers
     kernel_init: Callable = nn.initializers.he_normal()
 
     def setup(self):
@@ -35,72 +34,82 @@ class ResidualBlock(nn.Module):
         # allows you to name sublayers
         # required if using multiple class methods (as we will be)
 
-        layer = Sequential([
-            nn.Conv(
-                kernel_size = 3,
-                strides = 1,
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
+        layer = Sequential(
+            [
+                nn.Conv(
+                    kernel_size=3,
+                    strides=1,
+                    features=self.in_channels,
+                    padding="SAME",
+                    use_bias=False,
+                    kernel_init=self.kernel_init,
                 ),
-                #BatchNorm
+                # BatchNorm
                 nn.relu(),
-            nn.Conv(
-                kernel_size = 3,
-                strides = 1,
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
+                nn.Conv(
+                    kernel_size=3,
+                    strides=1,
+                    features=self.out_channels,
+                    padding="SAME",
+                    use_bias=False,
+                    kernel_init=self.kernel_init,
                 ),
-                #BatchNorm
-        ])
-
+                # BatchNorm
+            ]
+        )
 
         self.layers = [copy.deepcopy(layer) for _ in range(self.N - 1)]
 
         if self.downsample:
-            self.finallayer = Sequential([
-            nn.Conv(
-                kernel_size = 3,
-                strides = 1,
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
-                ),
-                #BatchNorm
-                nn.relu(),
-            nn.Conv(
-                kernel_size = 3,
-                strides = (2,2),
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
-                ),
-                #BatchNorm
-            ])
+            self.finallayer = Sequential(
+                [
+                    nn.Conv(
+                        kernel_size=3,
+                        strides=1,
+                        features=self.in_channels,
+                        padding="SAME",
+                        use_bias=False,
+                        kernel_init=self.kernel_init,
+                    ),
+                    # BatchNorm
+                    nn.relu(),
+                    nn.Conv(
+                        kernel_size=3,
+                        strides=(2, 2),
+                        features=self.out_channels,
+                        padding="SAME",
+                        use_bias=False,
+                        kernel_init=self.kernel_init,
+                    ),
+                    # BatchNorm
+                ]
+            )
         else:
-            self.finallayer = Sequential([
-            nn.Conv(
-                kernel_size = 3,
-                strides = 1,
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
-                ),
-                #BatchNorm
-                nn.relu(),
-            nn.Conv(
-                kernel_size = 3,
-                strides = 1,
-                padding = 'SAME',
-                use_bias = False,
-                kernel_init=self.kernel_init
-                ),
-                #BatchNorm
-            ])
+            self.finallayer = Sequential(
+                [
+                    nn.Conv(
+                        kernel_size=3,
+                        strides=1,
+                        features=self.in_channels,
+                        padding="SAME",
+                        use_bias=False,
+                        kernel_init=self.kernel_init,
+                    ),
+                    # BatchNorm
+                    nn.relu(),
+                    nn.Conv(
+                        kernel_size=3,
+                        strides=1,
+                        features=self.out_channels,
+                        padding="SAME",
+                        use_bias=False,
+                        kernel_init=self.kernel_init,
+                    ),
+                    # BatchNorm
+                ]
+            )
 
-
-    def __call__(self, input, train = True):
+    def __call__(self, input, train=True):
         x = input
 
         for layer in self.layers:
@@ -109,7 +118,7 @@ class ResidualBlock(nn.Module):
             x += residual
 
             x = nn.relu(x)
-        
+
         residual = x
 
         x = self.finallayer(x)
@@ -122,7 +131,6 @@ class ResidualBlock(nn.Module):
 
         return nn.relu(x)
 
-
     def pad_identity(self, x):
         # Pad identity connection in the case of downsampling
         return jnp.pad(
@@ -131,3 +139,49 @@ class ResidualBlock(nn.Module):
             "constant",
             0,
         )
+
+
+class ResNet(nn.Module):
+    # Define collection of datafields here
+    filter_list: Sequence[int]
+    N: int
+    num_classes: int
+
+    @nn.compact
+    def __call__(self, x):
+
+        x = nn.Conv(
+            kernel_size=3,
+            strides=1,
+            features=self.filter_list[0],
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+        )(x)
+
+        # x = bn(x)
+        # x = nn.relu(x)
+
+        x = ResidualBlock(
+            in_channels=self.filter_list[0], out_channels=self.filter_list[1], N=self.N
+        )(x)
+
+        x = ResidualBlock(
+            in_channels=self.filter_list[1], out_channels=self.filter_list[2], N=self.N
+        )(x)
+
+        x = ResidualBlock(
+            in_channels=self.filter_list[2],
+            out_channels=self.filter_list[2],
+            N=self.N,
+            downsample=False,
+        )(x)
+
+        # Might have to check order for indices
+        x = jnp.mean(x, axis=(2, 3)).squeeze()
+
+        x = x.reshape(x.shape[0], -1)
+
+        x = nn.Dense(features=self.num_classes)
+
+        return x
