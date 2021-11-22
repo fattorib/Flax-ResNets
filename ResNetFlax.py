@@ -9,7 +9,8 @@ from functools import partial
 
 ModuleDef = Any
 
-
+#Custom Sequential does not like nn.relu(), it does not have a __call__
+#One option is to just make a relu module
 class Sequential(nn.Module):
     layers: Sequence[nn.Module]
 
@@ -21,6 +22,11 @@ class Sequential(nn.Module):
             x = layer(x)
         return x
 
+class RelU(nn.Module):
+
+    @nn.compact
+    def __call__(self,inputs):
+        return nn.relu(inputs)
 
 class ResidualBlock(nn.Module):
     # Define collection of datafields here
@@ -44,7 +50,7 @@ class ResidualBlock(nn.Module):
         layer = Sequential(
             [
                 nn.Conv(
-                    kernel_size=3,
+                    kernel_size=(3,3),
                     strides=1,
                     features=self.in_channels,
                     padding="SAME",
@@ -52,11 +58,11 @@ class ResidualBlock(nn.Module):
                     kernel_init=self.kernel_init,
                 ),
                 self.norm(),
-                nn.relu(),
+                RelU(),
                 nn.Conv(
-                    kernel_size=3,
+                    kernel_size=(3,3),
                     strides=1,
-                    features=self.out_channels,
+                    features=self.in_channels,
                     padding="SAME",
                     use_bias=False,
                     kernel_init=self.kernel_init,
@@ -71,7 +77,7 @@ class ResidualBlock(nn.Module):
             self.finallayer = Sequential(
                 [
                     nn.Conv(
-                        kernel_size=3,
+                        kernel_size=(3,3),
                         strides=1,
                         features=self.in_channels,
                         padding="SAME",
@@ -79,9 +85,9 @@ class ResidualBlock(nn.Module):
                         kernel_init=self.kernel_init,
                     ),
                     self.norm(),
-                    nn.relu(),
+                    RelU(),
                     nn.Conv(
-                        kernel_size=3,
+                        kernel_size=(3,3),
                         strides=(2, 2),
                         features=self.out_channels,
                         padding="SAME",
@@ -95,7 +101,7 @@ class ResidualBlock(nn.Module):
             self.finallayer = Sequential(
                 [
                     nn.Conv(
-                        kernel_size=3,
+                        kernel_size=(3,3),
                         strides=1,
                         features=self.in_channels,
                         padding="SAME",
@@ -103,9 +109,9 @@ class ResidualBlock(nn.Module):
                         kernel_init=self.kernel_init,
                     ),
                     self.norm(),
-                    nn.relu(),
+                    RelU(),
                     nn.Conv(
-                        kernel_size=3,
+                        kernel_size=(3,3),
                         strides=1,
                         features=self.out_channels,
                         padding="SAME",
@@ -129,7 +135,7 @@ class ResidualBlock(nn.Module):
         residual = x
 
         x = self.finallayer(x)
-
+        
         if self.downsample:
             x += self.pad_identity(residual)
 
@@ -141,10 +147,10 @@ class ResidualBlock(nn.Module):
     def pad_identity(self, x):
         # Pad identity connection in the case of downsampling
         return jnp.pad(
-            x[:, :, ::2, ::2],
-            (0, 0, 0, 0, self.out_channels // 4, self.out_channels // 4),
+            x[:, ::2, ::2, ::],
+            ((0, 0), (0, 0), (0,0), (self.out_channels // 4, self.out_channels // 4)
+            ),
             "constant",
-            0,
         )
 
 
@@ -153,6 +159,9 @@ class ResNet(nn.Module):
     filter_list: Sequence[int]
     N: int
     num_classes: int
+
+    # define init for conv layers
+    kernel_init: Callable = nn.initializers.he_normal()
 
     # For train/test differences, want to pass “mode switches” to __call__
     @nn.compact
@@ -166,7 +175,7 @@ class ResNet(nn.Module):
         )
 
         x = nn.Conv(
-            kernel_size=3,
+            kernel_size=(3,3),
             strides=1,
             features=self.filter_list[0],
             padding="SAME",
@@ -199,12 +208,32 @@ class ResNet(nn.Module):
             norm=norm,
         )(x)
 
-        # TODO: Might have to check order for indices
         # Global pooling
-        x = jnp.mean(x, axis=(2, 3)).squeeze()
+        x = jnp.mean(x, axis=(1, 2))
 
         x = x.reshape(x.shape[0], -1)
 
-        x = nn.Dense(features=self.num_classes)
+        x = nn.Dense(features=self.num_classes, kernel_init=self.kernel_init)(x)
 
         return x
+
+
+if __name__ == '__main__':
+
+    model = ResNet(filter_list = [16,32,64], N = 3, num_classes=10)
+
+    rng = jax.random.PRNGKey(0)
+
+    params = model.init(rng, jnp.ones([1,32,32,3]), train = True)['params']
+    batch_stats = model.init(rng, jnp.ones([1,32,32,3]), train = True)["batch_stats"]
+
+
+    test_batch = jnp.ones([128,32,32,3])
+
+    batch_out, state = model.apply({'params': params,
+    "batch_stats": batch_stats}
+    , test_batch, train = True,
+    mutable=['batch_stats'])
+
+    print(batch_out.shape)
+

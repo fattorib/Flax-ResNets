@@ -160,8 +160,8 @@ class ResNet(nn.Module):
 
 if __name__ == "__main__":
 
-    model = ResNet(filters_list=[16, 32, 64], N=3)
+    model = ResNet(filters_list=[16, 32, 64], N=3).cuda()
 
-    input = torch.rand([128, 3, 32, 32])
+    input = torch.rand([128, 3, 32, 32]).cuda()
 
     print(model(input).shape)

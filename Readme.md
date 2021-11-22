@@ -9,3 +9,7 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - Calling BatchNorm is weird (train/eval changes, params + variables)
 
 - For mode switching behaviour (Dropout/BN), the switch must be passed to the __call__ method 
+
+- XLA is more finicky than CUDA, had to update CUDA
+
+- JAX defaults to different indice ordering for Convolutions
