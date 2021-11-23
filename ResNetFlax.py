@@ -9,7 +9,7 @@ from functools import partial
 
 ModuleDef = Any
 
-#Custom Sequential does not like nn.relu(), it does not have a __call__
+#Custom Sequential does not like nn.relu(), it is not a flax module
 #One option is to just make a relu module
 class Sequential(nn.Module):
     layers: Sequence[nn.Module]

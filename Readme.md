@@ -13,3 +13,9 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - XLA is more finicky than CUDA, had to update CUDA
 
 - JAX defaults to different indice ordering for Convolutions
+
+- With a few small changes, dataloading can be handled via pytorch 
+
+- OOM errors are odd
+
+- Not super clear how GPU use works
