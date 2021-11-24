@@ -5,7 +5,7 @@ from jax import grad, jit, vmap
 from jax import random
 import jax
 from torch.utils import data
-from utils_flax import NumpyLoader, FlattenAndCast
+from utils_flax import NumpyLoader, FlattenAndCast, create_step_schedule
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
 import flax.linen as nn
@@ -14,49 +14,26 @@ from flax.training import train_state
 import numpy as np
 
 
-
 class TrainState(train_state.TrainState):
     batch_stats: Any = None
 
-# PyTorch dataloading
-transform_train = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.RandomCrop(
-                    (32, 32),
-                    padding=4,
-                    fill=0,
-                    padding_mode="constant",
-                ),
-                transforms.RandomHorizontalFlip(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-                FlattenAndCast()
-            ]
-        )
-
-train_dataset = CIFAR10(
-            root="./CIFAR", train=True, download=True, transform=transform_train
-)
-
+@jax.jit
 def cross_entropy_loss(*, logits, labels):
     """
     Softmax + CE Loss
     """
     one_hot_labels = jax.nn.one_hot(labels, num_classes=10)
-    return -jnp.mean(jnp.sum(one_hot_labels * nn.log_softmax(logits, axis = -1), axis=-1))
+    return -jnp.mean(jnp.sum(one_hot_labels * nn.log_softmax(logits, axis=-1), axis=-1))
+
 
 def compute_metrics(*, logits, labels):
-  loss = cross_entropy_loss(logits=logits, labels=labels)
-  accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
-  metrics = {
-      'loss': loss,
-      'accuracy': accuracy,
-  }
-  return metrics
-
-
+    loss = cross_entropy_loss(logits=logits, labels=labels)
+    accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
+    metrics = {
+        "loss": loss,
+        "accuracy": accuracy,
+    }
+    return metrics
 
 
 def initialized(key, image_size, model):
@@ -64,17 +41,17 @@ def initialized(key, image_size, model):
 
     @jax.jit
     def init(rng, shape):
-        return model.init(rng, shape, train = True)
+        return model.init(rng, shape, train=True)
 
-    variables = init(rng = key, shape = jnp.ones(input_shape))
+    variables = init(rng=key, shape=jnp.ones(input_shape))
     return variables["params"], variables["batch_stats"]
 
 
-def create_train_state(rng, learning_rate, momentum):
+def create_train_state(rng, momentum, learning_rate_fn):
     """Creates initial `TrainState`."""
-    model = ResNet(filter_list = [16,32,64], N = 3, num_classes=10)
+    model = ResNet(filter_list=[16, 32, 64], N=3, num_classes=10)
     params, batch_stats = initialized(rng, 32, model)
-    tx = optax.sgd(learning_rate = learning_rate, momentum = momentum, nesterov=True)
+    tx = optax.sgd(learning_rate=learning_rate_fn, momentum=momentum, nesterov=True)
     state = TrainState.create(
         apply_fn=model.apply,
         params=params,
@@ -82,6 +59,7 @@ def create_train_state(rng, learning_rate, momentum):
         batch_stats=batch_stats,
     )
     return state
+
 
 @jax.jit
 def train_step(state, batch, labels):
@@ -92,7 +70,7 @@ def train_step(state, batch, labels):
             {"params": params, "batch_stats": state.batch_stats},
             batch,
             mutable=["batch_stats"],
-            train = True
+            train=True,
         )
         loss = cross_entropy_loss(logits=logits, labels=labels)
         return loss, (logits, new_state)
@@ -100,16 +78,19 @@ def train_step(state, batch, labels):
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     aux, grads = grad_fn(state.params)
     logits, new_state = aux[1]
-
     
+    # #Maybe for logging - want to do this by epoch, not step 
+    # step = state.step
+    # lr = learning_rate_fn(step)
+
     state = state.apply_gradients(
         grads=grads,
         batch_stats=new_state["batch_stats"],
     )
     metrics = compute_metrics(logits=logits, labels=labels)
 
-
     return state, metrics
+
 
 @jax.jit
 def eval_step(state, batch, labels):
@@ -121,10 +102,10 @@ def eval_step(state, batch, labels):
     )
     return compute_metrics(logits=logits, targets=labels)
 
+
 def train_epoch(state, dataloader, epoch):
     """Train for a single epoch."""
     batch_metrics = []
-
 
     for images, labels in dataloader:
         state, metrics = train_step(state, images, labels)
@@ -136,6 +117,7 @@ def train_epoch(state, dataloader, epoch):
         for k in batch_metrics_np[0]
     }
     return state, epoch_metrics_np
+
 
 def eval_model(state, dataloader):
     batch_metrics = []
@@ -150,7 +132,29 @@ def eval_model(state, dataloader):
 
     return validation_metrics_np["loss"], validation_metrics_np["accuracy"]
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+
+    # PyTorch dataloading
+    transform_train = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.RandomCrop(
+                (32, 32),
+                padding=4,
+                fill=0,
+                padding_mode="constant",
+            ),
+            transforms.RandomHorizontalFlip(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            FlattenAndCast(),
+        ]
+    )
+
+    train_dataset = CIFAR10(
+        root="./CIFAR", train=True, download=False, transform=transform_train
+    )
+
     trainloader = NumpyLoader(
         train_dataset,
         batch_size=128,
@@ -167,7 +171,9 @@ if __name__ == '__main__':
     learning_rate = 0.1
     momentum = 0.9
 
-    state = create_train_state(init_rng, learning_rate, momentum)
+    learning_rate_fn = create_step_schedule(0.1, 0.1, [5,10])
+
+    state = create_train_state(init_rng, momentum, learning_rate_fn=learning_rate_fn)
     del init_rng  # Must not be used anymore.
 
     for epoch in range(1, num_epochs + 1):
@@ -175,6 +181,12 @@ if __name__ == '__main__':
         state, epoch_metrics_np = train_epoch(state, trainloader, epoch)
 
         print(
-            "train epoch: %d, loss: %.4f, accuracy: %.2f"
-            % (epoch, epoch_metrics_np["loss"], epoch_metrics_np["accuracy"] * 100)
+            f"train epoch: {epoch}, loss: {epoch_metrics_np['loss']}, accuracy:{epoch_metrics_np['accuracy']*100:.2}"
         )
+
+        # Evaluate on validation set
+
+        # val_loss, val_acc = eval_model(state, dataloader=valloader)
+
+        # Evaluate on test set
+        # test_loss, test_acc = eval_model(state, dataloader=testloader)
