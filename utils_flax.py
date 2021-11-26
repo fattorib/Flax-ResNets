@@ -51,11 +51,11 @@ class FlattenAndCast(object):
         return np.array(pic.permute(1, 2, 0), dtype=jnp.float32)
 
 
-
 def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
-  
-  def learning_rate_fn(step):
-      lr = min_lr  + (0.5)*(base_lr - min_lr)*(1+jnp.cos(jnp.pi*step/max_steps))
-      return lr 
+    def learning_rate_fn(step):
+        lr = min_lr + (0.5) * (base_lr - min_lr) * (
+            1 + jnp.cos(jnp.pi * step / max_steps)
+        )
+        return lr
 
-  return learning_rate_fn
+    return learning_rate_fn

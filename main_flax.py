@@ -5,7 +5,7 @@ from jax import grad, jit, vmap
 from jax import random
 import jax
 from torch.utils import data
-from utils_flax import NumpyLoader, FlattenAndCast,create_cos_anneal_schedule
+from utils_flax import NumpyLoader, FlattenAndCast, create_cos_anneal_schedule
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
 import flax.linen as nn
@@ -16,6 +16,7 @@ import numpy as np
 
 class TrainState(train_state.TrainState):
     batch_stats: Any = None
+
 
 @jax.jit
 def cross_entropy_loss(*, logits, labels):
@@ -78,8 +79,8 @@ def train_step(state, batch, labels):
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     aux, grads = grad_fn(state.params)
     logits, new_state = aux[1]
-    
-    # #Maybe for logging - want to do this by epoch, not step 
+
+    # #Maybe for logging - want to do this by epoch, not step
     # step = state.step
     # lr = learning_rate_fn(step)
 
@@ -171,7 +172,9 @@ if __name__ == "__main__":
     learning_rate = 0.1
     momentum = 0.9
 
-    learning_rate_fn = create_cos_anneal_schedule(base_lr=0.1, min_lr=0.001, max_steps=500)
+    learning_rate_fn = create_cos_anneal_schedule(
+        base_lr=0.1, min_lr=0.001, max_steps=500
+    )
 
     state = create_train_state(init_rng, momentum, learning_rate_fn=learning_rate_fn)
     del init_rng  # Must not be used anymore.
@@ -181,7 +184,7 @@ if __name__ == "__main__":
         state, epoch_metrics_np = train_epoch(state, trainloader, epoch)
 
         print(
-            f"train epoch: {epoch}, loss: {epoch_metrics_np['loss']}, accuracy:{epoch_metrics_np['accuracy']*100:.2}"
+            f"train epoch: {epoch}, loss: {epoch_metrics_np['loss']:.4f}, accuracy:{epoch_metrics_np['accuracy']*100:.2f}%"
         )
 
         # Evaluate on validation set
