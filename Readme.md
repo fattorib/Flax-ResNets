@@ -23,3 +23,5 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - Not super clear how GPU use works
 
 - Any JIT compliation will not like conditional stataments
+
+- Default Flax train state is based on steps, not epochs
