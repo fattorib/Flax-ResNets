@@ -5,7 +5,7 @@ from jax import grad, jit, vmap
 from jax import random
 import jax
 from torch.utils import data
-from utils_flax import NumpyLoader, FlattenAndCast, create_step_schedule
+from utils_flax import NumpyLoader, FlattenAndCast,create_cos_anneal_schedule
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
 import flax.linen as nn
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     learning_rate = 0.1
     momentum = 0.9
 
-    learning_rate_fn = create_step_schedule(0.1, 0.1, [5,10])
+    learning_rate_fn = create_cos_anneal_schedule(base_lr=0.1, min_lr=0.001, max_steps=500)
 
     state = create_train_state(init_rng, momentum, learning_rate_fn=learning_rate_fn)
     del init_rng  # Must not be used anymore.

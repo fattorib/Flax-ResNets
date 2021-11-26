@@ -52,15 +52,10 @@ class FlattenAndCast(object):
 
 
 
-def create_step_schedule(base_lr, scale_factor, milestones: Sequence[int, int]):
+def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
   
   def learning_rate_fn(step):
-    if step < milestones[0]:
-      lr = base_lr
-    elif step >= milestones[0] and step < milestones[1]:
-      lr = scale_factor*base_lr
-    else:
-      lr = (scale_factor**2)*base_lr
-    return lr
+      lr = min_lr  + (0.5)*(base_lr - min_lr)*(1+jnp.cos(jnp.pi*step/max_steps))
+      return lr 
 
   return learning_rate_fn
