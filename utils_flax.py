@@ -4,9 +4,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 
-# Utils used for training flax ResNet. Currently holds dataloader class
 
-# From jax example
 def numpy_collate(batch):
     if isinstance(batch[0], np.ndarray):
         return np.stack(batch)
@@ -15,7 +13,6 @@ def numpy_collate(batch):
         return [numpy_collate(samples) for samples in transposed]
     else:
         return np.array(batch)
-
 
 class NumpyLoader(data.DataLoader):
     def __init__(
