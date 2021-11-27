@@ -5,7 +5,12 @@ from jax import grad, jit, vmap
 from jax import random
 import jax
 from torch.utils import data
-from utils_flax import NumpyLoader, FlattenAndCast, create_cos_anneal_schedule
+from utils_flax import (
+    NumpyLoader,
+    FlattenAndCast,
+    create_cos_anneal_schedule,
+    compute_weight_decay,
+)
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
 import flax.linen as nn
@@ -16,6 +21,7 @@ import numpy as np
 
 class TrainState(train_state.TrainState):
     batch_stats: Any = None
+    weight_decay: Any = None
 
 
 @jax.jit
@@ -48,7 +54,7 @@ def initialized(key, image_size, model):
     return variables["params"], variables["batch_stats"]
 
 
-def create_train_state(rng, momentum, learning_rate_fn):
+def create_train_state(rng, momentum, learning_rate_fn, weight_decay):
     """Creates initial `TrainState`."""
     model = ResNet(filter_list=[16, 32, 64], N=3, num_classes=10)
     params, batch_stats = initialized(rng, 32, model)
@@ -58,6 +64,7 @@ def create_train_state(rng, momentum, learning_rate_fn):
         params=params,
         tx=tx,
         batch_stats=batch_stats,
+        weight_decay=weight_decay,
     )
     return state
 
@@ -74,15 +81,14 @@ def train_step(state, batch, labels):
             train=True,
         )
         loss = cross_entropy_loss(logits=logits, labels=labels)
+
+        loss += 0.5 * state.weight_decay * compute_weight_decay(params)
+
         return loss, (logits, new_state)
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     aux, grads = grad_fn(state.params)
     logits, new_state = aux[1]
-
-    # #Maybe for logging - want to do this by epoch, not step
-    # step = state.step
-    # lr = learning_rate_fn(step)
 
     state = state.apply_gradients(
         grads=grads,
@@ -176,7 +182,9 @@ if __name__ == "__main__":
         base_lr=0.1, min_lr=0.001, max_steps=500
     )
 
-    state = create_train_state(init_rng, momentum, learning_rate_fn=learning_rate_fn)
+    state = create_train_state(
+        init_rng, momentum, learning_rate_fn=learning_rate_fn, weight_decay=1e-4
+    )
     del init_rng  # Must not be used anymore.
 
     for epoch in range(1, num_epochs + 1):

@@ -6,6 +6,7 @@ from flax.core import freeze, unfreeze
 from flax import linen as nn
 import copy
 from functools import partial
+from utils_flax import compute_weight_decay
 
 ModuleDef = Any
 
@@ -251,11 +252,16 @@ if __name__ == "__main__":
 
     test_batch = jnp.ones([128, 32, 32, 3])
 
-    batch_out, state = model.apply(
+    batch_out, state, = model.apply(
         {"params": params, "batch_stats": batch_stats},
         test_batch,
         train=True,
         mutable=["batch_stats"],
     )
 
-    print(batch_out.shape)
+    # This method will get ALL params to apply WD to. Suboptimal if we want to skip BN, biases
+    # print(jax.tree_leaves(params))
+
+    weight_decay = compute_weight_decay(params)
+
+    print(weight_decay)

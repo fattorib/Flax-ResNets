@@ -2,7 +2,7 @@ from typing import Sequence
 from torch.utils import data
 import numpy as np
 import jax.numpy as jnp
-
+import jax
 
 # Utils used for training flax ResNet. Currently holds dataloader class
 
@@ -59,3 +59,18 @@ def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
         return lr
 
     return learning_rate_fn
+
+
+def compute_weight_decay(params):
+    """Given a pytree of params, compute the summed $L2$ norm of the params.
+
+    TODO: This function currently computes the Norm for ALL params (including $\alpha$ and $\beta$ for
+    Batch Normalization layers). Most papers now will skip the weight-decay for these params.
+
+    """
+    param_norm = 0
+
+    for p in jax.tree_leaves(params):
+        param_norm += jnp.sum(p ** 2)
+
+    return param_norm
