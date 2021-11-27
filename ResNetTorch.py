@@ -158,6 +158,27 @@ class ResNet(nn.Module):
         return x
 
 
+def _resnet(layers, N, num_classes=10):
+    model = ResNet(filter_list=layers, N=N, num_classes=num_classes)
+    return model
+
+
+def ResNet20():
+    return _resnet(layers=[16, 32, 64], N=3, num_classes=10)
+
+
+def ResNet32():
+    return _resnet(layers=[16, 32, 64], N=5, num_classes=10)
+
+
+def ResNet50():
+    return _resnet(layers=[16, 32, 64], N=8, num_classes=10)
+
+
+def ResNet110():
+    return _resnet(layers=[16, 32, 64], N=18, num_classes=10)
+
+
 if __name__ == "__main__":
 
     model = ResNet(filters_list=[16, 32, 64], N=3).cuda()

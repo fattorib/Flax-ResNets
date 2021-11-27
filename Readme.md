@@ -25,3 +25,5 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - Any JIT compliation will not like conditional stataments
 
 - Default Flax train state is based on steps, not epochs
+
+- Weight decay is whack (I think)
