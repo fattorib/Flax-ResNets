@@ -27,3 +27,5 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - Default Flax train state is based on steps, not epochs
 
 - Weight decay is whack (I think)
+
+- Mixed Precision anyone?
