@@ -14,6 +14,7 @@ def numpy_collate(batch):
     else:
         return np.array(batch)
 
+
 class NumpyLoader(data.DataLoader):
     def __init__(
         self,

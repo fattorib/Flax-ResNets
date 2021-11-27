@@ -1,4 +1,7 @@
-from ResNetFlax import ResNet
+import argparse
+import shutil
+import time
+
 from typing import Callable, Any
 import jax.numpy as jnp
 from jax import grad, jit, vmap
@@ -13,15 +16,238 @@ from utils_flax import (
 )
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
+from ResNetFlax import ResNet20, ResNet32, ResNet50, ResNet110
 import flax.linen as nn
 import optax
 from flax.training import train_state
 import numpy as np
+import torch.utils
+import wandb
 
 
 class TrainState(train_state.TrainState):
     batch_stats: Any = None
     weight_decay: Any = None
+
+
+def parse():
+    parser = argparse.ArgumentParser(description="Flax CIFAR10 Training")
+
+    parser.add_argument(
+        "-data",
+        "--data",
+        default="ML/",
+        type=str,
+        metavar="DIR",
+        help="path to dataset",
+    )
+    parser.add_argument(
+        "-j",
+        "--workers",
+        default=4,
+        type=int,
+        metavar="N",
+        help="number of data loading workers (default: 4)",
+    )
+
+    parser.add_argument(
+        "--epochs",
+        default=120,
+        type=int,
+        metavar="N",
+        help="number of total epochs to run",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        default=0,
+        type=int,
+        metavar="N",
+        help="manual epoch number (useful on restarts)",
+    )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        default=128,
+        type=int,
+        metavar="N",
+        help="mini-batch size per process (default: 128)",
+    )
+
+    parser.add_argument(
+        "--weight-decay",
+        "--wd",
+        default=1e-4,
+        type=float,
+        metavar="W",
+        help="weight decay (default: 1e-4)",
+    )
+
+    parser.add_argument(
+        "--print-freq",
+        "-p",
+        default=100,
+        type=int,
+        metavar="N",
+        help="print frequency (default: 10)",
+    )
+
+    parser.add_argument("--local_rank", default=0, type=int)
+
+    # My additional args
+    parser.add_argument("--model", type=str, default="ResNet20")
+    parser.add_argument("--CIFAR10", type=bool, default=True)
+    parser.add_argument("--Mixed-Precision", type=bool, default=True)
+    parser.add_argument("--num-classes", type=int, default=10)
+    parser.add_argument("--cos-anneal", type=bool, default=False)
+    parser.add_argument("--base-lr", type=float, default=0.1)
+    parser.add_argument("--momentum", type=float, default=0.9)
+
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    global best_prec1, args
+
+    args = parse()
+
+    if args.model == "ResNet20":
+        model = ResNet20()
+
+    if args.model == "ResNet32":
+        model = ResNet32()
+
+    if args.model == "ResNet50":
+        model = ResNet50()
+
+    if args.model == "ResNet110":
+        model = ResNet110()
+
+    if args.CIFAR10:
+        assert args.num_classes == 10, "Must have 10 output classes for CIFAR10"
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.RandomCrop(
+                    (32, 32),
+                    padding=4,
+                    fill=0,
+                    padding_mode="constant",
+                ),
+                transforms.RandomHorizontalFlip(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+                FlattenAndCast(),
+            ]
+        )
+
+        transform_test = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+                FlattenAndCast(),
+            ]
+        )
+
+        train_dataset = CIFAR10(
+            root="./CIFAR", train=True, download=False, transform=transform_train
+        )
+        train_dataset, validation_dataset = torch.utils.data.random_split(
+            train_dataset, [45000, 5000]
+        )
+
+        test_dataset = CIFAR10(
+            root="./CIFAR", train=False, download=False, transform=transform_test
+        )
+
+        train_loader = NumpyLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.workers,
+            pin_memory=False,
+        )
+
+        validation_loader = NumpyLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.workers,
+            pin_memory=False,
+        )
+
+        test_loader = NumpyLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.workers,
+            pin_memory=False,
+        )
+
+    # Setup WandB logging here
+    wandb_run = wandb.init(project="Flax Torch")
+    wandb.config.max_epochs = args.epochs
+    wandb.config.batch_size = args.batch_size
+    wandb.config.weight_decay = args.weight_decay
+
+    wandb.config.ModelName = args.model
+    wandb.config.Dataset = "CIFAR10"
+    wandb.config.Package = "Flax"
+
+    # --------- Create Train State ---------#
+    rng = jax.random.PRNGKey(0)
+    rng, init_rng = jax.random.split(rng)
+
+    learning_rate_fn = create_cos_anneal_schedule(
+        base_lr=args.base_lr, min_lr=0.001, max_steps=args.batch_size * args.epochs
+    )
+    state = create_train_state(
+        init_rng,
+        momentum=args.momentum,
+        learning_rate_fn=learning_rate_fn,
+        weight_decay=args.weight_decay,
+        model=model,
+    )
+    del init_rng
+
+    for epoch in range(0, args.epochs):
+        state, train_epoch_metrics_np = train_epoch(state, train_loader, epoch)
+
+        print(
+            f"train epoch: {epoch}, loss: {train_epoch_metrics_np['loss']:.4f}, accuracy:{train_epoch_metrics_np['accuracy']*100:.2f}%"
+        )
+
+        # Get LR:
+        lr = learning_rate_fn(epoch * args.batch_size)
+        lr_np = jax.device_get(lr)
+
+        # Validation set metrics:
+        validation_loss, _ = eval_model(state, validation_loader)
+
+        if epoch % 10 == 0:
+            _, test_accuracy = eval_model(state, test_loader)
+
+            wandb.log(
+                {
+                    "acc@1": test_accuracy * 100,
+                    "Learning Rate": lr_np,
+                    "Training Loss": train_epoch_metrics_np["loss"],
+                    "Validation Loss": validation_loss,
+                }
+            )
+
+        else:
+            wandb.log(
+                {
+                    "Learning Rate": lr_np,
+                    "Training Loss": train_epoch_metrics_np["loss"],
+                    "Validation Loss": validation_loss,
+                }
+            )
 
 
 @jax.jit
@@ -54,9 +280,8 @@ def initialized(key, image_size, model):
     return variables["params"], variables["batch_stats"]
 
 
-def create_train_state(rng, momentum, learning_rate_fn, weight_decay):
+def create_train_state(rng, momentum, learning_rate_fn, weight_decay, model):
     """Creates initial `TrainState`."""
-    model = ResNet(filter_list=[16, 32, 64], N=3, num_classes=10)
     params, batch_stats = initialized(rng, 32, model)
     tx = optax.sgd(learning_rate=learning_rate_fn, momentum=momentum, nesterov=True)
     state = TrainState.create(
@@ -107,7 +332,7 @@ def eval_step(state, batch, labels):
         mutable=False,
         train=False,
     )
-    return compute_metrics(logits=logits, targets=labels)
+    return compute_metrics(logits=logits, labels=labels)
 
 
 def train_epoch(state, dataloader, epoch):
@@ -141,63 +366,4 @@ def eval_model(state, dataloader):
 
 
 if __name__ == "__main__":
-
-    # PyTorch dataloading
-    transform_train = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.RandomCrop(
-                (32, 32),
-                padding=4,
-                fill=0,
-                padding_mode="constant",
-            ),
-            transforms.RandomHorizontalFlip(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            FlattenAndCast(),
-        ]
-    )
-
-    train_dataset = CIFAR10(
-        root="./CIFAR", train=True, download=False, transform=transform_train
-    )
-
-    trainloader = NumpyLoader(
-        train_dataset,
-        batch_size=128,
-        shuffle=True,
-        num_workers=4,
-        pin_memory=False,
-    )
-
-    num_epochs = 10
-
-    rng = jax.random.PRNGKey(0)
-    rng, init_rng = jax.random.split(rng)
-
-    learning_rate = 0.1
-    momentum = 0.9
-
-    learning_rate_fn = create_cos_anneal_schedule(
-        base_lr=0.1, min_lr=0.001, max_steps=500
-    )
-
-    state = create_train_state(
-        init_rng, momentum, learning_rate_fn=learning_rate_fn, weight_decay=1e-4
-    )
-    del init_rng  # Must not be used anymore.
-
-    for epoch in range(1, num_epochs + 1):
-        # Run an optimization step over a training batch
-        state, epoch_metrics_np = train_epoch(state, trainloader, epoch)
-
-        print(
-            f"train epoch: {epoch}, loss: {epoch_metrics_np['loss']:.4f}, accuracy:{epoch_metrics_np['accuracy']*100:.2f}%"
-        )
-
-        # Evaluate on validation set
-
-        # val_loss, val_acc = eval_model(state, dataloader=valloader)
-
-        # Evaluate on test set
-        # test_loss, test_acc = eval_model(state, dataloader=testloader)
+    main()
