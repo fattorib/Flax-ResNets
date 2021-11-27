@@ -207,8 +207,6 @@ def main():
     wandb.config.max_epochs = args.epochs
     wandb.config.batch_size = args.batch_size
     wandb.config.weight_decay = args.weight_decay
-    wandb.config.RandAugmentN = args.RandAugN
-    wandb.config.RandAugmentM = args.RandAugM
 
     wandb.config.ModelName = args.model
     wandb.config.Dataset = "CIFAR10"
@@ -217,11 +215,6 @@ def main():
     scaler = None
     if args.Mixed_Precision:
         scaler = amp.GradScaler()
-
-    global mixup
-    mixup = False
-    if args.mixup > 0:
-        mixup = True
 
     for epoch in range(0, args.epochs):
 
@@ -250,7 +243,6 @@ def main():
             wandb.log(
                 {
                     "acc@1": prec1,
-                    "acc@5": prec5,
                     "Learning Rate": lr,
                     "Training Loss": train_loss,
                     "Validation Loss": val_loss,
