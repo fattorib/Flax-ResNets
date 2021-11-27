@@ -31,7 +31,7 @@ best_prec1 = 0
 
 
 def parse():
-    parser = argparse.ArgumentParser(description="PyTorch RepVGG CIFAR10/100 Training")
+    parser = argparse.ArgumentParser(description="PyTorch CIFAR10 Training")
 
     parser.add_argument(
         "-data",
