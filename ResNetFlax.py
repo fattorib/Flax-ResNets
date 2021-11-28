@@ -10,8 +10,6 @@ from utils_flax import compute_weight_decay
 
 ModuleDef = Any
 
-# Custom Sequential does not like nn.relu(), it is not a flax module
-# One option is to just make a relu module
 class Sequential(nn.Module):
     layers: Sequence[nn.Module]
 
@@ -22,12 +20,6 @@ class Sequential(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
-
-
-class RelU(nn.Module):
-    @nn.compact
-    def __call__(self, inputs):
-        return nn.relu(inputs)
 
 
 class ResidualBlock(nn.Module):
@@ -60,7 +52,7 @@ class ResidualBlock(nn.Module):
                     kernel_init=self.kernel_init,
                 ),
                 self.norm(),
-                RelU(),
+                nn.relu,
                 nn.Conv(
                     kernel_size=(3, 3),
                     strides=1,
@@ -87,7 +79,7 @@ class ResidualBlock(nn.Module):
                         kernel_init=self.kernel_init,
                     ),
                     self.norm(),
-                    RelU(),
+                    nn.relu,
                     nn.Conv(
                         kernel_size=(3, 3),
                         strides=(2, 2),
@@ -111,7 +103,7 @@ class ResidualBlock(nn.Module):
                         kernel_init=self.kernel_init,
                     ),
                     self.norm(),
-                    RelU(),
+                    nn.relu,
                     nn.Conv(
                         kernel_size=(3, 3),
                         strides=1,
@@ -185,6 +177,7 @@ class ResNet(nn.Module):
             kernel_init=self.kernel_init,
         )(x)
 
+
         x = norm()(x)
         x = nn.relu(x)
 
@@ -232,9 +225,12 @@ def ResNet20():
 def ResNet32():
     return _resnet(layers=[16, 32, 64], N=5, num_classes=10)
 
+def ResNet44():
+    return _resnet(layers=[16, 32, 64], N=7, num_classes=10)
 
-def ResNet50():
-    return _resnet(layers=[16, 32, 64], N=8, num_classes=10)
+
+def ResNet56():
+    return _resnet(layers=[16, 32, 64], N=9, num_classes=10)
 
 
 def ResNet110():
@@ -258,10 +254,3 @@ if __name__ == "__main__":
         train=True,
         mutable=["batch_stats"],
     )
-
-    # This method will get ALL params to apply WD to. Suboptimal if we want to skip BN, biases
-    # print(jax.tree_leaves(params))
-
-    weight_decay = compute_weight_decay(params)
-
-    print(weight_decay)
