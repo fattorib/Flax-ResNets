@@ -16,7 +16,7 @@ from utils_flax import (
 )
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
-from ResNetFlax import ResNet20, ResNet32, ResNet50, ResNet110
+from ResNetFlax import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
 import flax.linen as nn
 import optax
 from flax.training import train_state
@@ -97,7 +97,6 @@ def parse():
     # My additional args
     parser.add_argument("--model", type=str, default="ResNet20")
     parser.add_argument("--CIFAR10", type=bool, default=True)
-    parser.add_argument("--Mixed-Precision", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
     parser.add_argument("--cos-anneal", type=bool, default=False)
     parser.add_argument("--base-lr", type=float, default=0.1)
@@ -115,13 +114,16 @@ def main():
     if args.model == "ResNet20":
         model = ResNet20()
 
-    if args.model == "ResNet32":
+    elif args.model == "ResNet32":
         model = ResNet32()
+    
+    elif args.model == "ResNet44":
+        model = ResNet44()
 
-    if args.model == "ResNet50":
-        model = ResNet50()
+    elif args.model == "ResNet56":
+        model = ResNet56()
 
-    if args.model == "ResNet110":
+    elif args.model == "ResNet110":
         model = ResNet110()
 
     if args.CIFAR10:
@@ -173,7 +175,7 @@ def main():
         )
 
         validation_loader = NumpyLoader(
-            train_dataset,
+            validation_dataset,
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=args.workers,
@@ -181,9 +183,9 @@ def main():
         )
 
         test_loader = NumpyLoader(
-            train_dataset,
+            test_dataset,
             batch_size=args.batch_size,
-            shuffle=True,
+            shuffle=False,
             num_workers=args.workers,
             pin_memory=False,
         )

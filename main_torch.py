@@ -18,7 +18,7 @@ import math
 import numpy as np
 
 from torchvision.datasets import CIFAR10
-from ResNetTorch import ResNet20, ResNet32, ResNet50, ResNet110
+from ResNetTorch import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
 import wandb
 
 
@@ -99,7 +99,7 @@ def parse():
     parser.add_argument("--CIFAR10", type=bool, default=False)
     parser.add_argument("--Mixed-Precision", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
-    parser.add_argument("--cos-anneal", type=bool, default=False)
+    parser.add_argument("--cos-anneal", type=bool, default=True)
     parser.add_argument("--step-lr", type=bool, default=False)
     parser.add_argument("--base-lr", type=float, default=0.1)
     parser.add_argument("--warmup", type=int, default=5)
@@ -120,13 +120,16 @@ def main():
         if args.model == "ResNet20":
             model = ResNet20()
 
-        if args.model == "ResNet32":
+        elif args.model == "ResNet32":
             model = ResNet32()
 
-        if args.model == "ResNet50":
-            model = ResNet50()
+        elif args.model == "ResNet44":
+            model = ResNet44()
 
-        if args.model == "ResNet110":
+        elif args.model == "ResNet56":
+            model = ResNet56()
+
+        elif args.model == "ResNet110":
             model = ResNet110()
 
         model = model.cuda()
