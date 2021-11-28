@@ -159,7 +159,7 @@ class ResNet(nn.Module):
 
 
 def _resnet(layers, N, num_classes=10):
-    model = ResNet(filter_list=layers, N=N, num_classes=num_classes)
+    model = ResNet(filters_list=layers, N=N, num_classes=num_classes)
     return model
 
 
@@ -171,8 +171,11 @@ def ResNet32():
     return _resnet(layers=[16, 32, 64], N=5, num_classes=10)
 
 
-def ResNet50():
-    return _resnet(layers=[16, 32, 64], N=8, num_classes=10)
+def ResNet44():
+    return _resnet(layers=[16, 32, 64], N=7, num_classes=10)
+
+def ResNet56():
+    return _resnet(layers=[16, 32, 64], N=9, num_classes=10)
 
 
 def ResNet110():
