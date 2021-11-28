@@ -69,6 +69,7 @@ def compute_weight_decay(params):
     param_norm = 0
 
     for p in jax.tree_leaves(params):
-        param_norm += jnp.sum(p ** 2)
+        if p.ndim > 1:
+            param_norm += jnp.sum(p ** 2)
 
     return param_norm
