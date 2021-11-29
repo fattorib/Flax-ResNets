@@ -51,10 +51,9 @@ class FlattenAndCast(object):
 
 def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
     def learning_rate_fn(step):
-        lr = min_lr + (0.5) * (base_lr - min_lr) * (
-            1 + jnp.cos(jnp.pi * step / max_steps)
-        )
-        return lr
+        cosine_decay = (0.5) *(1 + jnp.cos(jnp.pi * step / max_steps))
+        decayed = (1 - min_lr) * cosine_decay + min_lr
+        return base_lr*decayed
 
     return learning_rate_fn
 

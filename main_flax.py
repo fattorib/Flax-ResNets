@@ -210,7 +210,7 @@ def main():
     state = create_train_state(
         init_rng,
         momentum=args.momentum,
-        learning_rate_fn=args.base_lr,
+        learning_rate_fn=learning_rate_fn,
         weight_decay=args.weight_decay,
         model=model,
     )
@@ -224,9 +224,9 @@ def main():
         )
 
         # Get LR:
-        # lr = learning_rate_fn(epoch * args.batch_size)
-        # lr_np = jax.device_get(lr)
-        lr_np = args.base_lr
+        lr = learning_rate_fn(epoch * args.batch_size)
+        lr_np = jax.device_get(lr)
+        # lr_np = args.base_lr
 
         # Validation set metrics:
         validation_loss, _ = eval_model(state, validation_loader)
