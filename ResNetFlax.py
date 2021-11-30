@@ -217,21 +217,9 @@ if __name__ == "__main__":
         mutable=["batch_stats"],
     )
 
-    # print(
-    #     f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
-    # )
+    print(
+        f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
+    )
 
-    weight_decay_params_filter = flax.traverse_util.ModelParamTraversal(lambda path, _: ('bias' not in path and 'scale' not in path))
-
-    count = 0
-
-    weight_decay_params = weight_decay_params_filter.iterate(params)
-
-    for p in jax.tree_leaves(params):
-
-    # for p in weight_decay_params:
-        count += 1
-
-    print(count)
     
 
