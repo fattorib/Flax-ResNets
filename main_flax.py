@@ -225,9 +225,9 @@ def main():
         )
 
         # Get LR:
-        lr = learning_rate_fn(epoch * args.batch_size)
+        step = epoch * args.batch_size
+        lr = learning_rate_fn(step)
         lr_np = jax.device_get(lr)
-        # lr_np = args.base_lr
 
         # Validation set metrics:
         validation_loss, _ = eval_model(state, validation_loader)

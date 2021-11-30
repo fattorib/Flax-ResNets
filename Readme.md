@@ -29,5 +29,3 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 - Weight decay is whack (I think)
 
 - Mixed Precision anyone?
-
-- BatchNorm momentum term is reversed to PyTorch

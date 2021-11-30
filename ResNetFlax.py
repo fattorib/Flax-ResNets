@@ -20,7 +20,7 @@ class ResidualBlock(nn.Module):
     norm: ModuleDef
 
     # define init for conv layers
-    kernel_init: Callable = nn.initializers.he_normal()
+    kernel_init: Callable = nn.initializers.kaiming_normal()
 
     @nn.compact
     def __call__(self, x):
@@ -35,8 +35,8 @@ class ResidualBlock(nn.Module):
             kernel_init=self.kernel_init,
         )(x)
         x = self.norm()(x)
-        nn.relu(x)
-        nn.Conv(
+        x = nn.relu(x)
+        x = nn.Conv(
             kernel_size=(3, 3),
             strides=1,
             features=self.in_channels,
@@ -46,7 +46,7 @@ class ResidualBlock(nn.Module):
         )(x)
         x = self.norm()(x)
 
-        x += residual
+        x = x + residual
 
         return nn.relu(x)
 
@@ -60,7 +60,7 @@ class DownSampleResidualBlock(nn.Module):
     norm: ModuleDef
 
     # define init for conv layers
-    kernel_init: Callable = nn.initializers.he_normal()
+    kernel_init: Callable = nn.initializers.kaiming_normal()
 
     @nn.compact
     def __call__(self, x):
@@ -80,13 +80,13 @@ class DownSampleResidualBlock(nn.Module):
             kernel_size=(3, 3),
             strides=(2, 2),
             features=self.out_channels,
-            padding="SAME",
+            padding=((1,1),(1,1)),
             use_bias=False,
             kernel_init=self.kernel_init,
         )(x)
         x = self.norm()(x)
 
-        x += self.pad_identity(residual)
+        x = x + self.pad_identity(residual)
 
         return nn.relu(x)
 
@@ -107,7 +107,7 @@ class ResNet(nn.Module):
     num_classes: int
 
     # define init for conv and linear layers
-    kernel_init: Callable = nn.initializers.he_normal()
+    kernel_init: Callable = nn.initializers.kaiming_normal()
 
     # For train/test differences, want to pass “mode switches” to __call__
     @nn.compact
@@ -116,10 +116,9 @@ class ResNet(nn.Module):
         norm = partial(
             nn.BatchNorm,
             use_running_average=not train,
-            momentum=0.9,
+            momentum=0.1,
             epsilon=1e-5,
         )
-
         x = nn.Conv(
             kernel_size=(3, 3),
             strides=1,
@@ -139,9 +138,11 @@ class ResNet(nn.Module):
                 norm=norm,
             )(x)
 
+
         x = DownSampleResidualBlock(
             in_channels=self.filter_list[0], out_channels=self.filter_list[1], norm=norm
         )(x)
+
 
         # Second stage
         for _ in range(0, self.N - 1):
@@ -149,6 +150,7 @@ class ResNet(nn.Module):
                 in_channels=self.filter_list[1],
                 norm=norm,
             )(x)
+           
 
         x = DownSampleResidualBlock(
             in_channels=self.filter_list[1], out_channels=self.filter_list[2], norm=norm
@@ -161,12 +163,13 @@ class ResNet(nn.Module):
                 norm=norm,
             )(x)
 
+
         # Global pooling
         x = jnp.mean(x, axis=(1, 2))
 
         x = x.reshape(x.shape[0], -1)
-
         x = nn.Dense(features=self.num_classes, kernel_init=self.kernel_init)(x)
+
 
         return x
 
@@ -214,6 +217,21 @@ if __name__ == "__main__":
         mutable=["batch_stats"],
     )
 
-    print(
-        f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
-    )
+    # print(
+    #     f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
+    # )
+
+    weight_decay_params_filter = flax.traverse_util.ModelParamTraversal(lambda path, _: ('bias' not in path and 'scale' not in path))
+
+    count = 0
+
+    weight_decay_params = weight_decay_params_filter.iterate(params)
+
+    for p in jax.tree_leaves(params):
+
+    # for p in weight_decay_params:
+        count += 1
+
+    print(count)
+    
+
