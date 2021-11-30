@@ -15,7 +15,6 @@ ModuleDef = Any
 class ResidualBlock(nn.Module):
     # Define collection of datafields here
     in_channels: int
-    out_channels: int
 
     # For batchnorm, you can pass it as a ModuleDef
     norm: ModuleDef
@@ -76,6 +75,7 @@ class DownSampleResidualBlock(nn.Module):
             kernel_init=self.kernel_init,
         )(x)
         x = self.norm()(x)
+        x = nn.relu(x)
         x = nn.Conv(
             kernel_size=(3, 3),
             strides=(2, 2),
@@ -84,6 +84,7 @@ class DownSampleResidualBlock(nn.Module):
             use_bias=False,
             kernel_init=self.kernel_init,
         )(x)
+        x = self.norm()(x)
 
         x += self.pad_identity(residual)
 
@@ -135,7 +136,6 @@ class ResNet(nn.Module):
         for _ in range(0, self.N - 1):
             x = ResidualBlock(
                 in_channels=self.filter_list[0],
-                out_channels=self.filter_list[0],
                 norm=norm,
             )(x)
 
@@ -147,7 +147,6 @@ class ResNet(nn.Module):
         for _ in range(0, self.N - 1):
             x = ResidualBlock(
                 in_channels=self.filter_list[1],
-                out_channels=self.filter_list[1],
                 norm=norm,
             )(x)
 
@@ -159,7 +158,6 @@ class ResNet(nn.Module):
         for _ in range(0, self.N):
             x = ResidualBlock(
                 in_channels=self.filter_list[2],
-                out_channels=self.filter_list[2],
                 norm=norm,
             )(x)
 
