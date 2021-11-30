@@ -99,8 +99,8 @@ def parse():
     parser.add_argument("--CIFAR10", type=bool, default=False)
     parser.add_argument("--Mixed-Precision", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
-    parser.add_argument("--cos-anneal", type=bool, default=True)
-    parser.add_argument("--step-lr", type=bool, default=False)
+    parser.add_argument("--cos-anneal", type=bool, default=False)
+    parser.add_argument("--step-lr", type=bool, default=True)
     parser.add_argument("--base-lr", type=float, default=0.1)
     parser.add_argument("--warmup", type=int, default=5)
 
@@ -140,6 +140,15 @@ def main():
         assert args.step_lr == False
 
         optimizer = create_optimizer(model, args.weight_decay, args.base_lr)
+
+    if args.step_lr:
+        assert args.cos_anneal == False
+
+        optimizer = create_optimizer(model, args.weight_decay, args.base_lr)
+
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=[90, 130], gamma=0.1
+        )
 
     if args.CIFAR10:
         assert args.num_classes == 10, "Must have 10 output classes for CIFAR10"

@@ -16,7 +16,7 @@ from utils_flax import (
 )
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
-from ResNetFlax2 import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
+from ResNetFlax import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
 import flax.linen as nn
 import optax
 from flax.training import train_state
@@ -116,7 +116,7 @@ def main():
 
     elif args.model == "ResNet32":
         model = ResNet32()
-    
+
     elif args.model == "ResNet44":
         model = ResNet44()
 
@@ -139,7 +139,7 @@ def main():
                 ),
                 transforms.RandomHorizontalFlip(),
                 transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]
                 ),
                 FlattenAndCast(),
             ]
@@ -149,7 +149,7 @@ def main():
             [
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]
                 ),
                 FlattenAndCast(),
             ]
@@ -204,9 +204,10 @@ def main():
     rng = jax.random.PRNGKey(0)
     rng, init_rng = jax.random.split(rng)
 
-    learning_rate_fn = create_cos_anneal_schedule(
-        base_lr=args.base_lr, min_lr=0.001, max_steps=args.batch_size * args.epochs
+    learning_rate_fn = optax.piecewise_constant_schedule(
+        init_value=args.base_lr, boundaries_and_scales={32000: 0.1, 48000: 0.1}
     )
+
     state = create_train_state(
         init_rng,
         momentum=args.momentum,
@@ -310,7 +311,7 @@ def train_step(state, batch, labels):
         )
         loss = cross_entropy_loss(logits=logits, labels=labels)
 
-        loss += 0.5 * state.weight_decay * compute_weight_decay(params)
+        loss = loss + 0.5 * state.weight_decay * compute_weight_decay(params)
 
         return loss, (logits, new_state)
 

@@ -46,7 +46,6 @@ class ResidualBlock(nn.Module):
         self.residual_block = nn.ModuleList(
             [copy.deepcopy(self.conv_block) for _ in range(self.N - 1)]
         )
-        self.bn = nn.BatchNorm2d(out_filters, affine=True)
         if self.downsample:
             self.final_block = nn.Sequential(
                 nn.Conv2d(
@@ -174,6 +173,7 @@ def ResNet32():
 def ResNet44():
     return _resnet(layers=[16, 32, 64], N=7, num_classes=10)
 
+
 def ResNet56():
     return _resnet(layers=[16, 32, 64], N=9, num_classes=10)
 
@@ -184,8 +184,11 @@ def ResNet110():
 
 if __name__ == "__main__":
 
-    model = ResNet(filters_list=[16, 32, 64], N=3).cuda()
+    from ptflops import get_model_complexity_info
 
-    input = torch.rand([128, 3, 32, 32]).cuda()
-
-    print(model(input).shape)
+    model = ResNet20()
+    macs, params = get_model_complexity_info(
+        model, (3, 32, 32), as_strings=True, print_per_layer_stat=False, verbose=True
+    )
+    print("{:<30}  {:<8}".format("Computational complexity: ", macs))
+    print("{:<30}  {:<8}".format("Number of parameters: ", params))

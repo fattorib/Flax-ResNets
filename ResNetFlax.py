@@ -7,140 +7,91 @@ from flax import linen as nn
 import copy
 from functools import partial
 from utils_flax import compute_weight_decay
+import numpy as np
 
 ModuleDef = Any
-
-class Sequential(nn.Module):
-    layers: Sequence[nn.Module]
-
-    @nn.compact
-    def __call__(self, inputs):
-        x = inputs
-
-        for layer in self.layers:
-            x = layer(x)
-        return x
 
 
 class ResidualBlock(nn.Module):
     # Define collection of datafields here
     in_channels: int
     out_channels: int
-    N: int
 
     # For batchnorm, you can pass it as a ModuleDef
     norm: ModuleDef
 
-    downsample: bool = True
+    # define init for conv layers
+    kernel_init: Callable = nn.initializers.he_normal()
+
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+
+        x = nn.Conv(
+            kernel_size=(3, 3),
+            strides=1,
+            features=self.in_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+        )(x)
+        x = self.norm()(x)
+        nn.relu(x)
+        nn.Conv(
+            kernel_size=(3, 3),
+            strides=1,
+            features=self.in_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+        )(x)
+        x = self.norm()(x)
+
+        x += residual
+
+        return nn.relu(x)
+
+
+class DownSampleResidualBlock(nn.Module):
+    # Define collection of datafields here
+    in_channels: int
+    out_channels: int
+
+    # For batchnorm, you can pass it as a ModuleDef
+    norm: ModuleDef
 
     # define init for conv layers
     kernel_init: Callable = nn.initializers.he_normal()
 
-    def setup(self):
-        # setup function is called at the end of __postinit__
-        # allows you to name sublayers
-        # required if using multiple class methods (as we will be)
-
-        layer = Sequential(
-            [
-                nn.Conv(
-                    kernel_size=(3, 3),
-                    strides=1,
-                    features=self.in_channels,
-                    padding="SAME",
-                    use_bias=False,
-                    kernel_init=self.kernel_init,
-                ),
-                self.norm(),
-                nn.relu,
-                nn.Conv(
-                    kernel_size=(3, 3),
-                    strides=1,
-                    features=self.in_channels,
-                    padding="SAME",
-                    use_bias=False,
-                    kernel_init=self.kernel_init,
-                ),
-                self.norm(),
-            ]
-        )
-
-        self.layers = [copy.deepcopy(layer) for _ in range(self.N - 1)]
-
-        if self.downsample:
-            self.finallayer = Sequential(
-                [
-                    nn.Conv(
-                        kernel_size=(3, 3),
-                        strides=1,
-                        features=self.in_channels,
-                        padding="SAME",
-                        use_bias=False,
-                        kernel_init=self.kernel_init,
-                    ),
-                    self.norm(),
-                    nn.relu,
-                    nn.Conv(
-                        kernel_size=(3, 3),
-                        strides=(2, 2),
-                        features=self.out_channels,
-                        padding="SAME",
-                        use_bias=False,
-                        kernel_init=self.kernel_init,
-                    ),
-                    self.norm(),
-                ]
-            )
-        else:
-            self.finallayer = Sequential(
-                [
-                    nn.Conv(
-                        kernel_size=(3, 3),
-                        strides=1,
-                        features=self.in_channels,
-                        padding="SAME",
-                        use_bias=False,
-                        kernel_init=self.kernel_init,
-                    ),
-                    self.norm(),
-                    nn.relu,
-                    nn.Conv(
-                        kernel_size=(3, 3),
-                        strides=1,
-                        features=self.out_channels,
-                        padding="SAME",
-                        use_bias=False,
-                        kernel_init=self.kernel_init,
-                    ),
-                    self.norm(),
-                ]
-            )
-
-    def __call__(self, input):
-        x = input
-
-        for layer in self.layers:
-            residual = x
-            x = layer(x)
-            x += residual
-
-            x = nn.relu(x)
-
+    @nn.compact
+    def __call__(self, x):
         residual = x
 
-        x = self.finallayer(x)
+        x = nn.Conv(
+            kernel_size=(3, 3),
+            strides=1,
+            features=self.in_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+        )(x)
+        x = self.norm()(x)
+        x = nn.Conv(
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            features=self.out_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+        )(x)
 
-        if self.downsample:
-            x += self.pad_identity(residual)
-
-        else:
-            x += residual
+        x += self.pad_identity(residual)
 
         return nn.relu(x)
 
-    # @jax.jit
+    @nn.nowrap
     def pad_identity(self, x):
-        # Pad identity connection in the case of downsampling
+        # Pad identity connection when downsampling
         return jnp.pad(
             x[:, ::2, ::2, ::],
             ((0, 0), (0, 0), (0, 0), (self.out_channels // 4, self.out_channels // 4)),
@@ -154,7 +105,7 @@ class ResNet(nn.Module):
     N: int
     num_classes: int
 
-    # define init for conv layers
+    # define init for conv and linear layers
     kernel_init: Callable = nn.initializers.he_normal()
 
     # For train/test differences, want to pass “mode switches” to __call__
@@ -177,31 +128,40 @@ class ResNet(nn.Module):
             kernel_init=self.kernel_init,
         )(x)
 
-
         x = norm()(x)
         x = nn.relu(x)
 
-        x = ResidualBlock(
-            in_channels=self.filter_list[0],
-            out_channels=self.filter_list[1],
-            N=self.N,
-            norm=norm,
+        # First stage
+        for _ in range(0, self.N - 1):
+            x = ResidualBlock(
+                in_channels=self.filter_list[0],
+                out_channels=self.filter_list[0],
+                norm=norm,
+            )(x)
+
+        x = DownSampleResidualBlock(
+            in_channels=self.filter_list[0], out_channels=self.filter_list[1], norm=norm
         )(x)
 
-        x = ResidualBlock(
-            in_channels=self.filter_list[1],
-            out_channels=self.filter_list[2],
-            N=self.N,
-            norm=norm,
+        # Second stage
+        for _ in range(0, self.N - 1):
+            x = ResidualBlock(
+                in_channels=self.filter_list[1],
+                out_channels=self.filter_list[1],
+                norm=norm,
+            )(x)
+
+        x = DownSampleResidualBlock(
+            in_channels=self.filter_list[1], out_channels=self.filter_list[2], norm=norm
         )(x)
 
-        x = ResidualBlock(
-            in_channels=self.filter_list[2],
-            out_channels=self.filter_list[2],
-            N=self.N,
-            downsample=False,
-            norm=norm,
-        )(x)
+        # Third stage
+        for _ in range(0, self.N):
+            x = ResidualBlock(
+                in_channels=self.filter_list[2],
+                out_channels=self.filter_list[2],
+                norm=norm,
+            )(x)
 
         # Global pooling
         x = jnp.mean(x, axis=(1, 2))
@@ -224,6 +184,7 @@ def ResNet20():
 
 def ResNet32():
     return _resnet(layers=[16, 32, 64], N=5, num_classes=10)
+
 
 def ResNet44():
     return _resnet(layers=[16, 32, 64], N=7, num_classes=10)
@@ -253,4 +214,8 @@ if __name__ == "__main__":
         test_batch,
         train=True,
         mutable=["batch_stats"],
+    )
+
+    print(
+        f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
     )
