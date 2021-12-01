@@ -1,12 +1,15 @@
 import argparse
 import shutil
 import time
-
+import functools
 from typing import Callable, Any
+from flax.optim import dynamic_scale
+from jax._src.dtypes import dtype
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
 import jax
+# from torch._C import float32
 from torch.utils import data
 from utils_flax import (
     NumpyLoader,
@@ -23,12 +26,13 @@ from flax.training import train_state
 import numpy as np
 import torch.utils
 import wandb
+import flax
 
 
 class TrainState(train_state.TrainState):
     batch_stats: Any = None
     weight_decay: Any = None
-
+    dynamic_scale: flax.optim.DynamicScale = None
 
 def parse():
     parser = argparse.ArgumentParser(description="Flax CIFAR10 Training")
@@ -52,7 +56,7 @@ def parse():
 
     parser.add_argument(
         "--epochs",
-        default=120,
+        default=180,
         type=int,
         metavar="N",
         help="number of total epochs to run",
@@ -101,6 +105,7 @@ def parse():
     parser.add_argument("--cos-anneal", type=bool, default=False)
     parser.add_argument("--base-lr", type=float, default=0.1)
     parser.add_argument("--momentum", type=float, default=0.9)
+    parser.add_argument("--dtype", type=str, default="fp32")
 
     args = parser.parse_args()
     return args
@@ -111,21 +116,24 @@ def main():
 
     args = parse()
 
+    model_dtype = jnp.float32 if args.dtype == 'fp32' else jnp.float16
+
     if args.model == "ResNet20":
-        model = ResNet20()
+        model = ResNet20(dtype = model_dtype)
 
     elif args.model == "ResNet32":
-        model = ResNet32()
+        model = ResNet32(dtype = model_dtype)
 
     elif args.model == "ResNet44":
-        model = ResNet44()
+        model = ResNet44(dtype = model_dtype)
 
     elif args.model == "ResNet56":
-        model = ResNet56()
+        model = ResNet56(dtype = model_dtype)
 
     elif args.model == "ResNet110":
-        model = ResNet110()
+        model = ResNet110(dtype = model_dtype)
 
+    # --------- Data Loading ---------#
     if args.CIFAR10:
         assert args.num_classes == 10, "Must have 10 output classes for CIFAR10"
         transform_train = transforms.Compose(
@@ -217,6 +225,7 @@ def main():
     )
     del init_rng
 
+    # --------- Training ---------#
     for epoch in range(0, args.epochs):
         state, train_epoch_metrics_np = train_epoch(state, train_loader, epoch)
 
@@ -254,6 +263,7 @@ def main():
             )
 
 
+# --------- Helper Functions: Loss, Train Step, Eval, Etc ---------#
 @jax.jit
 def cross_entropy_loss(*, logits, labels):
     """
@@ -280,7 +290,7 @@ def initialized(key, image_size, model):
     def init(rng, shape):
         return model.init(rng, shape, train=True)
 
-    variables = init(rng=key, shape=jnp.ones(input_shape))
+    variables = init(rng=key, shape=jnp.ones(input_shape, dtype = model.dtype))
     return variables["params"], variables["batch_stats"]
 
 
@@ -294,6 +304,7 @@ def create_train_state(rng, momentum, learning_rate_fn, weight_decay, model):
         tx=tx,
         batch_stats=batch_stats,
         weight_decay=weight_decay,
+        dynamic_scale = flax.optim.DynamicScale() if model.dtype == jnp.float16 else None
     )
     return state
 
@@ -315,8 +326,17 @@ def train_step(state, batch, labels):
 
         return loss, (logits, new_state)
 
-    grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-    aux, grads = grad_fn(state.params)
+    dynamic_scale = state.dynamic_scale
+
+    if dynamic_scale:
+        grad_fn = dynamic_scale.value_and_grad(loss_fn, has_aux=True)
+        dynamic_scale, is_fin, aux, grads = grad_fn(state.params)
+
+    else:
+
+        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+        aux, grads = grad_fn(state.params)
+
     logits, new_state = aux[1]
 
     state = state.apply_gradients(
@@ -324,6 +344,19 @@ def train_step(state, batch, labels):
         batch_stats=new_state["batch_stats"],
     )
     metrics = compute_metrics(logits=logits, labels=labels)
+
+    if dynamic_scale:
+        # if is_fin == False the gradients contain Inf/NaNs and optimizer state and
+        # params should be restored (= skip this step).
+        state = state.replace(
+            opt_state=jax.tree_multimap(
+                functools.partial(jnp.where, is_fin),
+                state.opt_state,
+                state.opt_state),
+            params=jax.tree_multimap(
+                functools.partial(jnp.where, is_fin),
+                state.params,
+                state.params))
 
     return state, metrics
 

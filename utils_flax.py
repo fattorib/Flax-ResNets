@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import jax
 import flax
 
+
 def numpy_collate(batch):
     if isinstance(batch[0], np.ndarray):
         return np.stack(batch)
@@ -71,10 +72,12 @@ def compute_weight_decay(params):
     #     if p.ndim > 1:
     #         param_norm += jnp.sum(p ** 2)
 
-    weight_decay_params_filter = flax.traverse_util.ModelParamTraversal(lambda path, _: ('bias' not in path and 'scale' not in path))
+    weight_decay_params_filter = flax.traverse_util.ModelParamTraversal(
+        lambda path, _: ("bias" not in path and "scale" not in path)
+    )
 
     weight_decay_params = weight_decay_params_filter.iterate(params)
-    
+
     for p in weight_decay_params:
         if p.ndim > 1:
             param_norm += jnp.sum(p ** 2)
