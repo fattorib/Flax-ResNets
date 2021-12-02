@@ -97,7 +97,7 @@ class ResidualBlock(nn.Module):
         x += residual
         return F.relu(x)
 ```
-While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code.
+While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code. Something else to note is that by default, Flax doesn't have a Sequential constructor like nn.Sequential in PyTorch. While it can be added [easily](https://github.com/google/flax/pull/1156), I found myself not needing in Flax despite relying on it alot in PyTorch.
 
 ## Train/Test Behaviour + State
 
@@ -200,30 +200,3 @@ Adding a learning rate schedule is quite easy. Optax supports many of the common
 - EfficientNet + training script in Flax: [https://github.com/rwightman/efficientnet-jax](https://github.com/rwightman/efficientnet-jax)
 - More ResNets in Flax: [https://github.com/n2cholas/jax-resnet](https://github.com/n2cholas/jax-resnet)
 - Optax docs: [https://optax.readthedocs.io/en/latest/](https://optax.readthedocs.io/en/latest/)
-
-
-## Notes:
-- Flax doesn't have a Sequential class. See (https://github.com/google/flax/pull/1156). Not that hard to write yourself
-- Calling BatchNorm is weird (train/eval changes, params + variables)
-
-- For mode switching behaviour (Dropout/BN), the switch must be passed to the __call__ method 
-
-- XLA is more finicky than CUDA, had to update CUDA
-
-- JAX defaults to different indice ordering for Convolutions
-
-- With a few small changes, dataloading can be handled via pytorch  (unless you want to pin memory! Then its weird)
-
-- JAX jnp arrays by default will be placed on the default device (https://jax.readthedocs.io/en/latest/faq.html). Using pinned memory in PyTorch dataloaders will result in all the pinned data being placed on the GPU automatically - easy to arrive at OOM errors. One workaround is to have the dataloader return np arrays and convert them to jnp after. Another solution is to not used Pinned memory 
-
-- OOM errors are odd
-
-- Not super clear how GPU use works
-
-- Any JIT compliation will not like conditional stataments
-
-- Default Flax train state is based on steps, not epochs
-
-- Weight decay is whack (I think)
-
-- Mixed Precision anyone?
