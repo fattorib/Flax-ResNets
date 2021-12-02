@@ -34,7 +34,6 @@ else:
     #include params for weight decay
 ```
 
-
 In Flax, we can use the following section of code:
 
 ```python 
@@ -46,7 +45,7 @@ weight_decay_params = weight_decay_params_filter.iterate(params)
 
 ```
 
-
+Adding a learning rate schedule is quite easy. Optax supports many of the common ones. Since the schdule is passed in as a function to the optimizer, all lr steps are handled internally compared with PyTorch which requires calling ```scheduler.step()```. 
 
 # 4. Miscellaneous 
 
