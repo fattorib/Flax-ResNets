@@ -120,11 +120,11 @@ def __call__(self, x, train):
         use_running_average=not train,
         momentum=0.1,
         epsilon=1e-5,
-        dtype=self.dtype,
+        dtype=jnp.float32,
     )
     ...
     x = ResidualBlock(
-                in_channels=self.filter_list[0], norm=norm, dtype=self.dtype
+                in_channels=16, norm=norm, dtype=jnp.float32
     )(x)
     ...
 ```
