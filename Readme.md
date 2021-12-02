@@ -1,9 +1,18 @@
-# ResNets: Jax/Flax vs. PyTorch 
+# ResNets: Jax+Flax vs. PyTorch 
 
-I want to learn JAX/Flax by implementing something (slightly) non-trivial and comparing it against an equivalent PyTorch implementation.
+This is a full implementation in both JAX+Flax and PyTorch of the CIFAR10 ResNets from [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) by He et. al. This is my first project in JAX so I rewrote an older project of mine that I had originally written in PyTorch. 
 
-Reference: PyTorch (1 year exp), Jax (No experience)
+Both models are in the "Models" folder. 
 
+To train a ResNet20 in Flax run: 
+```
+python main_flax.py --workers 4 --epochs 180 --batch-size 128 --weight-decay 1e-4 --model ResNet20 --CIFAR10 True
+```
+To train a ResNet20 in PyTorch run:
+```
+python main_torch.py --workers 4 --epochs 180 --batch-size 128 --weight-decay 1e-4 --model ResNet20 --CIFAR10 True
+```
+The following is an overview of the main ideas I learned while working with Flax:
 # Contents
 - [Model Construction](#model-construction)
 - [Data Loading](#data-loading)
