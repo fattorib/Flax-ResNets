@@ -125,7 +125,7 @@ def __call__(self, x, train):
     ...
     x = ResidualBlock(
                 in_channels=self.filter_list[0], norm=norm, dtype=self.dtype
-                    )(x)
+    )(x)
     ...
 ```
 The final step is to add arugments to the model's ```.apply()``` method as follows:
