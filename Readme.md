@@ -4,9 +4,12 @@ I want to learn JAX/Flax by implementing something (slightly) non-trivial and co
 
 Reference: PyTorch (1 year exp), Jax (No experience)
 
-# 1. Model Construction
+# Contents
+- [Model Construction](#model-construction)
 
-## 1.1 Defining Modules
+# Model Construction
+
+## Defining Modules
 
 Through Flax's Linen API, we should be able to define modules with the ```@nn.compact``` decorator. I found writing modules this way to be very simple! For a basic residual block in Flax, we would write:
 ```python
@@ -93,7 +96,7 @@ class ResidualBlock(nn.Module):
 ```
 While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code.
 
-## 1.2 Train/Test Behaviour + State
+## Train/Test Behaviour + State
 
 ResNets employ Batch Normalization following convolutional layers. The BatchNorm layer is interesting as it:
 - Has trainable parameters ($\alpha$ and $\beta$) and non-trainable variables (batch statistics)
@@ -147,18 +150,18 @@ logits = state.apply_fn(
     )
 ```
 
-# 2. Data Loading
+# Data Loading
 
 In JAX/Flax, we can actually take the existing PyTorch data pipeline and modify it slightly to return jnp arrays instead of PyTorch Tensors. See [here](https://jax.readthedocs.io/en/latest/notebooks/Neural_Network_and_Data_Loading.html) for more details. PyTorch's data loading and augmentations capabilities are great so being able to directly use this with Flax is great.
 
 One issue I noticed was that my code would always return an OOM error if I set ```pin_memory=True``` in the dataloader. I suspect this is because JAX, by default will allocate tensors directly to the GPU memory, instead of the pinned memory. 
 
-# 3. Model Training
+# Model Training
 
-## 3.1 TrainState
+## TrainState
 In Flax, all model training is passed through a ```TrainState``` class which holds the ```.apply()``` method, the optimizer, the model paramaters and any other attributes we wish to include. In the Flax example, I have created a subclass of ```TrainState``` and included batch statistics, weight decay, and dynamic scaling as extra attributes. 
 
-## 3.2 Optimizers
+## Optimizers
 The Flax docs recommend using [Optax](https://github.com/deepmind/optax) for optimizers and learning rate scheduling. By default, only the AdamW optimizer includes a weight decay parameter.
 
 Weight decay/L2 regularization can get a bit tricky depending on the optimizer used (See Adam vs. AdamW). In our case, with SGD, we can add an L2 regularization term manually to our loss function. It is common practice to exclude certain paramaters from regulurization, including $\alpha$ and $\beta$ in BatchNorm layers and bias terms in Dense\Linear layers. 
@@ -188,7 +191,7 @@ weight_decay_params = weight_decay_params_filter.iterate(params)
 
 Adding a learning rate schedule is quite easy. Optax supports many of the common ones. Since the schdule is passed in as a function to the optimizer, all lr steps are handled internally compared with PyTorch which requires calling ```scheduler.step()``` manually. 
 
-# 4. Other Helpful resources:
+# Other Helpful resources:
 - Flax docs: [https://flax.readthedocs.io/en/latest/](https://flax.readthedocs.io/en/latest/)
 - Flax examples: [https://github.com/google/flax/tree/main/examples](https://github.com/google/flax/tree/main/examples)
 - EfficientNet + training script in Flax: [https://github.com/rwightman/efficientnet-jax](https://github.com/rwightman/efficientnet-jax)
