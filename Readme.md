@@ -6,6 +6,9 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 
 # Contents
 - [Model Construction](#model-construction)
+- [Data Loading](#data-loading)
+- [Model Training](#model-training)
+- [Other Helpful resources](#other-helpful-resources)
 
 # Model Construction
 
@@ -191,7 +194,7 @@ weight_decay_params = weight_decay_params_filter.iterate(params)
 
 Adding a learning rate schedule is quite easy. Optax supports many of the common ones. Since the schdule is passed in as a function to the optimizer, all lr steps are handled internally compared with PyTorch which requires calling ```scheduler.step()``` manually. 
 
-# Other Helpful resources:
+# Other Helpful resources
 - Flax docs: [https://flax.readthedocs.io/en/latest/](https://flax.readthedocs.io/en/latest/)
 - Flax examples: [https://github.com/google/flax/tree/main/examples](https://github.com/google/flax/tree/main/examples)
 - EfficientNet + training script in Flax: [https://github.com/rwightman/efficientnet-jax](https://github.com/rwightman/efficientnet-jax)
