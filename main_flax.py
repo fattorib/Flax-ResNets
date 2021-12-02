@@ -1,26 +1,20 @@
 import argparse
-import shutil
-import time
 import functools
-from typing import Callable, Any
-from flax.optim import dynamic_scale
+from typing import  Any
 from jax._src.dtypes import dtype
 import jax.numpy as jnp
-from jax import grad, jit, vmap
-from jax import random
 import jax
 
-# from torch._C import float32
-from torch.utils import data
+
+
 from utils_flax import (
     NumpyLoader,
     FlattenAndCast,
-    create_cos_anneal_schedule,
     compute_weight_decay,
 )
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
-from ResNetFlax import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
+from Models.ResNetFlax import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
 import flax.linen as nn
 import optax
 from flax.training import train_state
@@ -89,22 +83,11 @@ def parse():
         help="weight decay (default: 1e-4)",
     )
 
-    parser.add_argument(
-        "--print-freq",
-        "-p",
-        default=100,
-        type=int,
-        metavar="N",
-        help="print frequency (default: 10)",
-    )
-
-    parser.add_argument("--local_rank", default=0, type=int)
 
     # My additional args
     parser.add_argument("--model", type=str, default="ResNet20")
     parser.add_argument("--CIFAR10", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
-    parser.add_argument("--cos-anneal", type=bool, default=False)
     parser.add_argument("--base-lr", type=float, default=0.1)
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--dtype", type=str, default="fp32")

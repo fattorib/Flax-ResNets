@@ -4,21 +4,19 @@ import time
 
 import torch
 
-# from torch._C import R
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torch.nn.functional as F
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 
 import math
-import numpy as np
+
 
 from torchvision.datasets import CIFAR10
-from ResNetTorch import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
+from Models.ResNetTorch import ResNet20, ResNet32, ResNet44, ResNet56, ResNet110
 import wandb
 
 
@@ -52,7 +50,7 @@ def parse():
 
     parser.add_argument(
         "--epochs",
-        default=120,
+        default=180,
         type=int,
         metavar="N",
         help="number of total epochs to run",
@@ -99,10 +97,8 @@ def parse():
     parser.add_argument("--CIFAR10", type=bool, default=False)
     parser.add_argument("--Mixed-Precision", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
-    parser.add_argument("--cos-anneal", type=bool, default=False)
     parser.add_argument("--step-lr", type=bool, default=True)
     parser.add_argument("--base-lr", type=float, default=0.1)
-    parser.add_argument("--warmup", type=int, default=5)
 
     args = parser.parse_args()
     return args
