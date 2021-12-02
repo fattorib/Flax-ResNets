@@ -215,24 +215,3 @@ def ResNet110(dtype = jnp.float32,):
     return _resnet(layers=[16, 32, 64], N=18, dtype = dtype, num_classes=10)
 
 
-if __name__ == "__main__":
-
-    model = ResNet20()
-
-    rng = jax.random.PRNGKey(0)
-
-    params = model.init(rng, jnp.ones([1, 32, 32, 3]), train=True)["params"]
-    batch_stats = model.init(rng, jnp.ones([1, 32, 32, 3]), train=True)["batch_stats"]
-
-    test_batch = jnp.ones([128, 32, 32, 3])
-
-    batch_out, state, = model.apply(
-        {"params": params, "batch_stats": batch_stats},
-        test_batch,
-        train=True,
-        mutable=["batch_stats"],
-    )
-
-    print(
-        f"Number of paramaters: {np.sum([x.size for x in jax.tree_leaves(params)])*1e-3:.2f}K"
-    )

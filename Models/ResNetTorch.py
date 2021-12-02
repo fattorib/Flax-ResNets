@@ -182,13 +182,3 @@ def ResNet110():
     return _resnet(layers=[16, 32, 64], N=18, num_classes=10)
 
 
-if __name__ == "__main__":
-
-    from ptflops import get_model_complexity_info
-
-    model = ResNet20()
-    macs, params = get_model_complexity_info(
-        model, (3, 32, 32), as_strings=True, print_per_layer_stat=False, verbose=True
-    )
-    print("{:<30}  {:<8}".format("Computational complexity: ", macs))
-    print("{:<30}  {:<8}".format("Number of parameters: ", params))
