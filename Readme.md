@@ -93,7 +93,59 @@ class ResidualBlock(nn.Module):
 ```
 While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code.
 
-## 1.2 
+## 1.2 Train/Test Behaviour + State
+
+ResNets employ Batch Normalization following convolutional layers. The BatchNorm layer is interesting as it:
+- Has trainable parameters ($\alpha$ and $\beta$) and non-trainable variables (batch statistics)
+- Has different train and test behaviour
+
+
+Because of this, special care is required when implementing BatchNorm layers. First for the trainable and non-trainable parameters, we handle these in the model initialization. Calling the ```model.init(*)``` method returns a PyTree of all parameters. Since the BatchNorm parameters are the only non-trainable parameters, we can split them off as follows:
+
+```python
+...
+variables = modelinit(rng, jnp.ones(input_shape))
+params, batch_stats = variables["params"], variables["batch_stats"]
+...
+```
+
+Managing train/eval behaviour is done by first adding a ```train``` bool to the ```__call__``` method of the main model (in this case the ResNet module), next we can initialize a partial module for a BatchNorm layer and pass it to all the necessary submodules. The following is a small section of the ResNet code:
+```python
+...
+@nn.compact
+def __call__(self, x, train):
+
+    norm = partial(
+        nn.BatchNorm,
+        use_running_average=not train,
+        momentum=0.1,
+        epsilon=1e-5,
+        dtype=self.dtype,
+    )
+    ...
+    x = ResidualBlock(
+                in_channels=self.filter_list[0], norm=norm, dtype=self.dtype
+                    )(x)
+    ...
+```
+The final step is to add arugments to the model's ```.apply()``` method as follows:
+```python
+#Training 
+logits, new_state = state.apply_fn(
+            {"params": params, "batch_stats": state.batch_stats},
+            batch,
+            mutable=["batch_stats"],
+            train=True,
+        )
+
+#Evaluation - Use running mean of batch statistics
+logits = state.apply_fn(
+        {"params": state.params, "batch_stats": state.batch_stats},
+        batch,
+        mutable=False,
+        train=False,
+    )
+```
 
 # 2. Data Loading
 
