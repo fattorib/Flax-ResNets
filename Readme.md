@@ -1,4 +1,4 @@
-# ResNets: Jax+Flax vs. PyTorch 
+# ResNets: JAX+Flax vs. PyTorch 
 
 This is a full implementation in both JAX+Flax and PyTorch of the CIFAR10 ResNets from [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) by He et. al. This is my first project in JAX so I rewrote an older project of mine that I had originally written in PyTorch. 
 
