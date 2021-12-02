@@ -106,7 +106,7 @@ class ResidualBlock(nn.Module):
         x += residual
         return F.relu(x)
 ```
-While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code. Something else to note is that by default, Flax doesn't have a Sequential constructor like nn.Sequential in PyTorch. While it can be added [easily](https://github.com/google/flax/pull/1156), I found myself not needing in Flax despite relying on it alot in PyTorch.
+While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code. Something else to note is that by default, Flax doesn't have a Sequential constructor like nn.Sequential in PyTorch. While it can be added [easily](https://github.com/google/flax/pull/1156), I found myself not needing in Flax despite relying on it a lot in PyTorch.
 
 ## Train/Test Behaviour + State
 
