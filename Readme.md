@@ -6,6 +6,95 @@ Reference: PyTorch (1 year exp), Jax (No experience)
 
 # 1. Model Construction
 
+## 1.1 Defining Modules
+
+Through Flax's Linen API, we should be able to define modules with the ```@nn.compact``` decorator. I found writing modules this way to be very simple! For a basic residual block in Flax, we would write:
+```python
+class ResidualBlock(nn.Module):
+    # Define collection of datafields here
+    in_channels: int
+
+    # For batchnorm, we can pass it as a ModuleDef
+    norm: ModuleDef
+
+    # dtype for fp16/32 training
+    dtype: dtypedef = jnp.float32
+
+    # define init for conv layers
+    kernel_init: Callable = nn.initializers.kaiming_normal()
+
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+
+        x = nn.Conv(
+            kernel_size=(3, 3),
+            strides=1,
+            features=self.in_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+            dtype=self.dtype,
+        )(x)
+        x = self.norm()(x)
+        x = nn.relu(x)
+        x = nn.Conv(
+            kernel_size=(3, 3),
+            strides=1,
+            features=self.in_channels,
+            padding="SAME",
+            use_bias=False,
+            kernel_init=self.kernel_init,
+            dtype=self.dtype,
+        )(x)
+        x = self.norm()(x)
+
+        x = x + residual
+
+        return nn.relu(x)
+```
+To do the same thing in PyTorch, we would write:
+```python
+class ResidualBlock(nn.Module):
+    # One full block of a given filter size
+    def __init__(self, in_filters):
+        super(ResidualBlock, self).__init__()
+        self.in_filters = in_filters
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(
+                self.in_filters,
+                self.in_filters,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(self.in_filters),
+            nn.ReLU(),
+            nn.Conv2d(
+                self.in_filters,
+                self.in_filters,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(self.in_filters),
+        )
+
+        #Requires _weights_init function
+        self.apply(_weights_init)
+
+    def forward(self, x):
+        residual = x
+        x = self.conv_block(x)
+        x += residual
+        return F.relu(x)
+```
+While it felt awkward at the start, using Linen's API leads to shorter module definitions and easier-to-follow forward pass code.
+
+## 1.2 
+
 # 2. Data Loading
 
 In JAX/Flax, we can actually take the existing PyTorch data pipeline and modify it slightly to return jnp arrays instead of PyTorch Tensors. See [here](https://jax.readthedocs.io/en/latest/notebooks/Neural_Network_and_Data_Loading.html) for more details. PyTorch's data loading and augmentations capabilities are great so being able to directly use this with Flax is great.
@@ -45,7 +134,7 @@ weight_decay_params = weight_decay_params_filter.iterate(params)
 
 ```
 
-Adding a learning rate schedule is quite easy. Optax supports many of the common ones. Since the schdule is passed in as a function to the optimizer, all lr steps are handled internally compared with PyTorch which requires calling ```scheduler.step()```. 
+Adding a learning rate schedule is quite easy. Optax supports many of the common ones. Since the schdule is passed in as a function to the optimizer, all lr steps are handled internally compared with PyTorch which requires calling ```scheduler.step()``` manually. 
 
 # 4. Miscellaneous 
 
