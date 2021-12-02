@@ -1,13 +1,12 @@
 import argparse
 import functools
-from typing import  Any
+from typing import Any
 from jax._src.dtypes import dtype
 import jax.numpy as jnp
 import jax
 
 
-
-from utils_flax import (
+from Utils.utils_flax import (
     NumpyLoader,
     FlattenAndCast,
     compute_weight_decay,
@@ -82,7 +81,6 @@ def parse():
         metavar="W",
         help="weight decay (default: 1e-4)",
     )
-
 
     # My additional args
     parser.add_argument("--model", type=str, default="ResNet20")
