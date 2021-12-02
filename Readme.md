@@ -25,13 +25,13 @@ Weight decay/L2 regularization can get a bit tricky depending on the optimizer u
 In PyTorch, we can filter these paramaters through ```model.named_parameters()```:
 ```python
 
-  #Taken from timm
-  for key, value in model.named_parameters():
+#Taken from timm (https://github.com/rwightman/pytorch-image-models)
+for key, value in model.named_parameters():
 
-    if "fc.bias" in key or "bias" in key or "bn" in key:
-        #exclude params for weight decay
-    else:
-        #include params for weight decay
+if "fc.bias" in key or "bias" in key or "bn" in key:
+    #exclude params for weight decay
+else:
+    #include params for weight decay
 ```
 
 
