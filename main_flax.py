@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
 import jax
+
 # from torch._C import float32
 from torch.utils import data
 from utils_flax import (
@@ -33,6 +34,7 @@ class TrainState(train_state.TrainState):
     batch_stats: Any = None
     weight_decay: Any = None
     dynamic_scale: flax.optim.DynamicScale = None
+
 
 def parse():
     parser = argparse.ArgumentParser(description="Flax CIFAR10 Training")
@@ -116,22 +118,22 @@ def main():
 
     args = parse()
 
-    model_dtype = jnp.float32 if args.dtype == 'fp32' else jnp.float16
+    model_dtype = jnp.float32 if args.dtype == "fp32" else jnp.float16
 
     if args.model == "ResNet20":
-        model = ResNet20(dtype = model_dtype)
+        model = ResNet20(dtype=model_dtype)
 
     elif args.model == "ResNet32":
-        model = ResNet32(dtype = model_dtype)
+        model = ResNet32(dtype=model_dtype)
 
     elif args.model == "ResNet44":
-        model = ResNet44(dtype = model_dtype)
+        model = ResNet44(dtype=model_dtype)
 
     elif args.model == "ResNet56":
-        model = ResNet56(dtype = model_dtype)
+        model = ResNet56(dtype=model_dtype)
 
     elif args.model == "ResNet110":
-        model = ResNet110(dtype = model_dtype)
+        model = ResNet110(dtype=model_dtype)
 
     # --------- Data Loading ---------#
     if args.CIFAR10:
@@ -290,7 +292,7 @@ def initialized(key, image_size, model):
     def init(rng, shape):
         return model.init(rng, shape, train=True)
 
-    variables = init(rng=key, shape=jnp.ones(input_shape, dtype = model.dtype))
+    variables = init(rng=key, shape=jnp.ones(input_shape, dtype=model.dtype))
     return variables["params"], variables["batch_stats"]
 
 
@@ -304,7 +306,7 @@ def create_train_state(rng, momentum, learning_rate_fn, weight_decay, model):
         tx=tx,
         batch_stats=batch_stats,
         weight_decay=weight_decay,
-        dynamic_scale = flax.optim.DynamicScale() if model.dtype == jnp.float16 else None
+        dynamic_scale=flax.optim.DynamicScale() if model.dtype == jnp.float16 else None,
     )
     return state
 
@@ -350,13 +352,12 @@ def train_step(state, batch, labels):
         # params should be restored (= skip this step).
         state = state.replace(
             opt_state=jax.tree_multimap(
-                functools.partial(jnp.where, is_fin),
-                state.opt_state,
-                state.opt_state),
+                functools.partial(jnp.where, is_fin), state.opt_state, state.opt_state
+            ),
             params=jax.tree_multimap(
-                functools.partial(jnp.where, is_fin),
-                state.params,
-                state.params))
+                functools.partial(jnp.where, is_fin), state.params, state.params
+            ),
+        )
 
     return state, metrics
 

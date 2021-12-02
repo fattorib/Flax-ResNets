@@ -180,5 +180,3 @@ def ResNet56():
 
 def ResNet110():
     return _resnet(layers=[16, 32, 64], N=18, num_classes=10)
-
-
