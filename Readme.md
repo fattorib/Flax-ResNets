@@ -119,7 +119,7 @@ Because of this, special care is required when implementing BatchNorm layers. Fi
 
 ```python
 ...
-variables = modelinit(rng, jnp.ones(input_shape))
+variables = model.init(rng, jnp.ones(input_shape))
 params, batch_stats = variables["params"], variables["batch_stats"]
 ...
 ```
