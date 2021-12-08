@@ -105,6 +105,7 @@ def parse():
     parser.add_argument("--Mixed-Precision", type=bool, default=True)
     parser.add_argument("--num-classes", type=int, default=10)
     parser.add_argument("--step-lr", type=bool, default=True)
+    parser.add_argument("--cos-anneal", type=bool, default=False)
     parser.add_argument("--base-lr", type=float, default=0.1)
 
 
@@ -149,7 +150,8 @@ def main():
         args.world_size = ngpus_per_node * args.world_size
         # Use torch.multiprocessing.spawn to launch distributed processes: the
         # main_worker process function
-        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
+        free_port = get_open_port()
+        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args, free_port), join = True)
     else:
         # Simply call main_worker function
         main_worker(args.gpu, ngpus_per_node, args)
@@ -164,8 +166,11 @@ def get_open_port():
 def cleanup():
     dist.destroy_process_group()
 
-def main_worker(gpu, ngpus_per_node, args):
 
+
+def main_worker(gpu, ngpus_per_node, args, free_port):
+
+    
     args.gpu = gpu
 
     if args.distributed:
@@ -176,14 +181,10 @@ def main_worker(gpu, ngpus_per_node, args):
             # global rank among all the processes
             args.rank = args.rank * ngpus_per_node + gpu
 
-
-        free_port = get_open_port()
         os.environ['MASTER_ADDR'] = 'localhost'
         os.environ['MASTER_PORT'] = str(free_port)
 
-        dist.init_process_group(backend=args.dist_backend,
-                                world_size=args.world_size, rank=args.rank)
-
+        dist.init_process_group("nccl", rank=args.rank, world_size=args.world_size)
 
 
     cudnn.benchmark = True
@@ -223,11 +224,6 @@ def main_worker(gpu, ngpus_per_node, args):
 
 
         criterion = nn.CrossEntropyLoss().cuda(args.gpu)
-
-    if args.cos_anneal:
-        assert args.step_lr == False
-
-        optimizer = create_optimizer(model, args.weight_decay, args.base_lr)
 
     if args.step_lr:
         assert args.cos_anneal == False
@@ -279,14 +275,16 @@ def main_worker(gpu, ngpus_per_node, args):
         )
 
     if args.distributed:
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset)
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        validation_sampler = torch.utils.data.distributed.DistributedSampler(validation_dataset)
     else:
         train_sampler = None
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),
         num_workers=args.workers,
         pin_memory=True,
         sampler=train_sampler
@@ -298,14 +296,16 @@ def main_worker(gpu, ngpus_per_node, args):
         shuffle=False,
         num_workers=args.workers,
         pin_memory=True,
+        sampler = test_sampler
     )
 
     validation_loader = torch.utils.data.DataLoader(
         validation_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=(validation_sampler is None),
         num_workers=args.workers,
         pin_memory=True,
+        sampler= validation_sampler
     )
 
     # Setup WandB logging here
@@ -539,6 +539,13 @@ def create_optimizer(model, weight_decay, lr):
             ]
 
     return torch.optim.SGD(params, lr, momentum=0.9, nesterov=True)
+
+
+def reduce_tensor(tensor, world_size):
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.reduce_op.SUM)
+    rt /= world_size
+    return rt
 
 
 if __name__ == "__main__":
