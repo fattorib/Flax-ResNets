@@ -65,10 +65,6 @@ def compute_weight_decay(params):
     """
     param_norm = 0
 
-    # for p in jax.tree_leaves(params):
-    #     if p.ndim > 1:
-    #         param_norm += jnp.sum(p ** 2)
-
     weight_decay_params_filter = flax.traverse_util.ModelParamTraversal(
         lambda path, _: ("bias" not in path and "scale" not in path)
     )
