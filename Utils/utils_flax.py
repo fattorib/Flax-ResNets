@@ -61,7 +61,9 @@ def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
 
 def compute_weight_decay(params):
     """Given a pytree of params, compute the summed $L2$ norm of the params.
-
+    
+    NOTE: For our case with SGD, weight decay ~ L2 regularization. This won't always be the 
+    case (ex: Adam vs. AdamW).
     """
     param_norm = 0
 
