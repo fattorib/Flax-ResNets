@@ -62,9 +62,6 @@ def create_cos_anneal_schedule(base_lr, min_lr, max_steps):
 def compute_weight_decay(params):
     """Given a pytree of params, compute the summed $L2$ norm of the params.
 
-    TODO: This function currently computes the Norm for ALL params (including $\alpha$ and $\beta$ for
-    Batch Normalization layers). Most papers now will skip the weight-decay for these params.
-
     """
     param_norm = 0
 
