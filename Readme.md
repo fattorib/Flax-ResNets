@@ -1,5 +1,7 @@
 # ResNets: JAX+Flax vs. PyTorch 
 
+**Addendum (April 2022)**: Coming back to this repo now, I realize that this project misses a few of the key ideas that make Jax so much more interesting than PyTorch or Tensorflow, mainly being the [vmap](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#auto-vectorization-with-vmap) and [pmap](https://jax.readthedocs.io/en/latest/jax-101/06-parallelism.html) transformations. I'd like to come back to another Jax project in the future when I have some free time!
+
 This is a full implementation in both JAX+Flax and PyTorch of the CIFAR10 ResNets from [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) by He et. al. This is my first project in JAX so I rewrote an older project of mine that I had originally written in PyTorch. 
 
 Both models are in the "Models" folder. 
